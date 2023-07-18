@@ -59,3 +59,10 @@ class RbGit:
             changes = True
 
         return changes
+
+    def add_remote_idempotent(self, name: str, url: str):
+        try:
+            self.cmd("remote", "add", name, url)
+        except RuntimeError:
+            # If the remote already exists, set its URL
+            self.cmd("remote", "set-url", name, url)

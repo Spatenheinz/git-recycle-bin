@@ -168,6 +168,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str) -> str:
 
 
 
+
 def main():
     parser = argparse.ArgumentParser(description="Create a checkpoint - an artifact which has traceability and expiry")
     parser.add_argument("artifact_name", help="The name of the artifact")
@@ -178,6 +179,8 @@ def main():
     src_tree_pwd = os.getcwd()
     nca_dir = nca_path(src_tree_pwd, args.binpath)
     rbgit = RbGit(rbgit_dir=f"{nca_dir}/.rbgit", rbgit_work_tree=nca_dir)
+
+    rbgit.add_remote_idempotent(name="recyclebin", url="git@gitlab.ci.demant.com:csfw/documentation/generated/aurora_rst_html_mpeddemo.git")
 
     artifact_sha = create_artifact_commit(rbgit, args.artifact_name, args.binpath)
     if artifact_sha:
