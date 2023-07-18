@@ -9,8 +9,8 @@ prep:
     export RBGIT_DIR="${PWD}/.rbgit"
     export RBGIT_WORK_TREE="${PWD}"
 
-    # Check if .rbgit folder exists, if not, init git
-    rbgit rev-parse --is-inside-work-tree >/dev/null 2>&1 && { echo "OK: .rbgit already exists" >&2; exit 0; }
+    # Check if .rbgit folder exists, if not, init and configure
+    rbgit rev-parse --is-inside-work-tree >/dev/null 2>&1 && exit 0
     rbgit init .
     rbgit config --local core.autocrlf false  # preserve files with their own line-endings
 
@@ -30,9 +30,11 @@ checkpoint  artifactname  binpath: prep
 
     # Set the source repo to the basename of git remote origin
     SRC_REPO="$(basename $(git config --get remote.origin.url))"
+    SRC_REPO_URL="$(git config --get remote.origin.url)"
 
     BRANCH_NAME="auto/checkpoint/${SRC_REPO}/${SRC_SHA}/{{artifactname}}"
 
+    BINPATH_REL="$({{just_executable()}} -f {{justfile()}} rel_dir  ${PWD}  {{binpath}})"
 
     # Find all files under directory, create blob objects for them, and add them to the Git index
     (
@@ -58,13 +60,28 @@ checkpoint  artifactname  binpath: prep
         export GIT_COMMITTER_DATE="$(git show -s --format=%cD ${SRC_SHA})"
 
         {
-            echo "auto: ${SRC_REPO}@${SRC_SHA_SHORT}: Build of {{binpath}}"
+            echo "auto: ${SRC_REPO}@${SRC_SHA_SHORT}: {{artifactname}}"
+            echo ""
+            echo "This is an automatically made commit which contains some artifacts"
+            echo "built from the source repo."
+            echo ""
+            echo "artifactname: {{artifactname}}"
+            echo "binpath_arg: {{binpath}}"
+            echo "binpath_rel: ${BINPATH_REL}"
+            echo "TTL: 30 days"  # from commiter date! so don't set this too-low
+            echo ""
+            echo "git_src_repo:     ${SRC_REPO}"
+            echo "git_src_repo_url: ${SRC_REPO_URL}"
+            echo "git_src_sha:      ${SRC_SHA}"
+            echo "git_src_branch:   $(git rev-parse --abbrev-ref HEAD)"
+            echo ""
+            git status --porcelain=1 --untracked-files=no | awk '{print "git_status:", $0}'  # Including untracked files gives too much noise
         } | rbgit commit-tree -F - "$treeish"
     )
-    echo "Wrote commit: ${commit}"
+    echo "Wrote commit: ${commit}" >&2
 
     rbgit update-ref refs/heads/${BRANCH_NAME} ${commit}
-    echo "Wrote ref '${BRANCH_NAME}' pointing to ${commit}"
+    echo "Wrote ref '${BRANCH_NAME}' pointing to ${commit}" >&2
 
 
 
@@ -73,3 +90,26 @@ push sha remote:
     # Push the specified SHA to the specified remote
     git push {{remote}} {{sha}}
 
+
+
+# Relativize query path from NearestCommonAncestor(context.abs, query.abs)
+rel_dir  context  query:
+    #!/usr/bin/env python3
+    import os
+    from itertools import takewhile
+
+    abs_context = os.path.abspath('{{context}}')
+    abs_query = os.path.abspath('{{query}}')
+
+    # Get absolute paths and split paths into components
+    components1 = abs_context.split(os.sep)
+    components2 = abs_query.split(os.sep)
+
+    # Use zip to iterate over pairs of components
+    # Stop when components differ, thanks to the use of itertools.takewhile
+    common_components = list(takewhile(lambda x: x[0]==x[1], zip(components1, components2)))
+
+    # The common path is the joined common components
+    common_path = os.sep.join([x[0] for x in common_components])
+
+    print(os.path.relpath(abs_query, common_path))
