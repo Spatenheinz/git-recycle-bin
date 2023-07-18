@@ -123,7 +123,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str) -> str:
     src_repo_url  = exec(["git", "config", "--get", f"remote.{src_remote_name}.url"])
     src_repo      = os.path.basename(src_repo_url)
     src_tree_pwd  = os.getcwd()
-    src_status    = exec(["git", "status", "--porcelain=1", "--untracked-files=no"])
+    src_status    = exec(["git", "status", "--porcelain=1", "--untracked-files=no"]); src_status = src_status if src_status != "" else "clean"
 
     branch_name = f"auto/checkpoint/{src_repo}/{src_sha}/{artifact_name}"
 
@@ -152,8 +152,9 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str) -> str:
         src-git-branch: {src_branch}
         src-git-repo: {src_repo}
         src-git-repo-url: {src_repo_url}
-    """ + extract_gerrit_change_id(src_sha_msg, "src-git-commit-changeid: ") \
-        + prefix_lines(prefix="src-git-status: ", lines=src_status)
+        {extract_gerrit_change_id(src_sha_msg, "src-git-commit-changeid: ")}
+        {prefix_lines(prefix="src-git-status: ", lines=trim_all_lines(src_status))}
+    """
 
     # Set {author,committer}-dates: Make our new commit reproducible by copying from the source; do not sample the current time.
     os.environ['GIT_AUTHOR_DATE'] = exec(["git", "show", "-s", "--format=%aD", src_sha])
