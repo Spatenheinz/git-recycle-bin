@@ -142,7 +142,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str) -> str:
         artifact: {src_repo}@{src_sha_short}: {artifact_name} @({string_trunc_ellipsis(30, src_sha_title).strip()})
 
         This is a (binary) artifact with expiry. Expiry can be changed.
-        See https://gitlab.ci.demant.com/csfw/flow/git-recycle-bin
+        See https://gitlab.ci.demant.com/csfw/flow/git-recycle-bin#Usage
 
         artifact-scheme-version: 1
         artifact-name: {artifact_name}
