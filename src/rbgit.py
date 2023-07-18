@@ -7,7 +7,7 @@ class RbGit:
         self.rbgit_work_tree = rbgit_work_tree if rbgit_work_tree else os.environ["RBGIT_WORK_TREE"]
         self.init_idempotent()
 
-    def cmd(self, *args, input=None):
+    def cmd(self, *args, input=None, capture_output=True):
         # Override environment variables
         envcopy = os.environ.copy()
         envcopy["GIT_DIR"] = self.rbgit_dir
@@ -15,7 +15,7 @@ class RbGit:
 
         # execute the git command with the modified environment
         print("Run:", ["rbgit", *args])
-        result = subprocess.run(["git", *args], input=input, env=envcopy, capture_output=True, text=True)
+        result = subprocess.run(["git", *args], input=input, env=envcopy, capture_output=capture_output, text=True)
 
         # If the subprocess exited with a non-zero return code, raise an error
         if result.returncode != 0:
