@@ -182,6 +182,7 @@ def main():
     artifact_sha = create_artifact_commit(rbgit, args.artifact_name, args.binpath)
     if artifact_sha:
         print(rbgit.cmd("log", "-1", artifact_sha))
+    print(rbgit.cmd("branch", "-vv"))
 
 
 if __name__ == "__main__":
