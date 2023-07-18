@@ -186,6 +186,10 @@ def main():
     parser.add_argument("--remote", required=False, type=str, default=os.getenv('GITRB_REMOTE'), help="Git remote URL to push artifact to.")
     parser.add_argument("--push", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH', 'False'), help="Perform push to remote.")
     parser.add_argument("--verbose", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_VERBOSE', 'False'), help="Enable verbose mode.")
+    # TODO: Add --clean to delete the .rbgit repo, or like docker's --rm
+    # TODO: Add --submodule to add a src/ submodule back to the src-repo.
+    # TODO: Create other script for the bin-side: CI expiry / branch-deletion.
+    # TODO: Create other script for the bin-side: Setting latest tag
 
     args = parser.parse_args()
 
