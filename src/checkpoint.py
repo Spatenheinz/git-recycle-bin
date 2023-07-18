@@ -135,7 +135,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str) -> str:
     changes = rbgit.add(binpath)
     if changes == False:
         print("No changes for the next commit", file=sys.stderr)
-        return None
+        return None, branch_name
 
     commit_msg = f"""
         artifact: {src_repo}@{src_sha_short}: {artifact_name} @({string_trunc_ellipsis(30, src_sha_title).strip()})
@@ -163,16 +163,29 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str) -> str:
 
     artifact_sha = rbgit.cmd("rev-parse", "HEAD").strip()
     print(f"Committed {artifact_sha}", file=sys.stderr)
-    return artifact_sha
+    return artifact_sha, branch_name
 
 
 
+
+def str2bool(v):
+    if isinstance(v, bool):
+       return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
 def main():
     parser = argparse.ArgumentParser(description="Create and push artifacts - which have traceability and expiry")
-    parser.add_argument("--name", required=True, help="Name to assign to the artifact. Will be sanitized")
-    parser.add_argument("--path", required=True, help="Path to artifact in src-repo.")
+    parser.add_argument("--name",   required=True,  type=str, default=os.getenv('GITRB_NAME'), help="Name to assign to the artifact. Will be sanitized.")
+    parser.add_argument("--path",   required=True,  type=str, default=os.getenv('GITRB_PATH'), help="Path to artifact in src-repo. File or folder.")
+    parser.add_argument("--remote", required=False, type=str, default=os.getenv('GITRB_REMOTE'), help="Git remote URL to push artifact to.")
+    parser.add_argument("--push", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH', 'False'), help="Perform push to remote.")
+    parser.add_argument("--verbose", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_VERBOSE', 'False'), help="Enable verbose mode.")
 
     args = parser.parse_args()
 
@@ -180,12 +193,15 @@ def main():
     nca_dir = nca_path(src_tree_pwd, args.path)
     rbgit = RbGit(rbgit_dir=f"{nca_dir}/.rbgit", rbgit_work_tree=nca_dir)
 
-    rbgit.add_remote_idempotent(name="recyclebin", url="git@gitlab.ci.demant.com:csfw/documentation/generated/aurora_rst_html_mpeddemo.git")
-
-    artifact_sha = create_artifact_commit(rbgit, args.name, args.path)
-    if artifact_sha:
-        print(rbgit.cmd("log", "-1", artifact_sha))
+    artifact_sha, branch_name = create_artifact_commit(rbgit, args.name, args.path)
     print(rbgit.cmd("branch", "-vv"))
+    if artifact_sha:
+        print(rbgit.cmd("log", "-1", branch_name))
+
+    if args.remote:
+        rbgit.add_remote_idempotent(name="recyclebin", url=args.remote)
+    if args.push:
+        rbgit.cmd("push", "recyclebin", branch_name, capture_output=False)  # pushing may take long, so always show stdout and stderr without capture
 
 
 if __name__ == "__main__":
