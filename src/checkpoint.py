@@ -170,19 +170,19 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Create a checkpoint - an artifact which has traceability and expiry")
-    parser.add_argument("artifact_name", help="The name of the artifact")
-    parser.add_argument("binpath", help="The path to the binary")
+    parser = argparse.ArgumentParser(description="Create and push artifacts - which have traceability and expiry")
+    parser.add_argument("--name", required=True, help="Name to assign to the artifact. Will be sanitized")
+    parser.add_argument("--path", required=True, help="Path to artifact in src-repo.")
 
     args = parser.parse_args()
 
     src_tree_pwd = os.getcwd()
-    nca_dir = nca_path(src_tree_pwd, args.binpath)
+    nca_dir = nca_path(src_tree_pwd, args.path)
     rbgit = RbGit(rbgit_dir=f"{nca_dir}/.rbgit", rbgit_work_tree=nca_dir)
 
     rbgit.add_remote_idempotent(name="recyclebin", url="git@gitlab.ci.demant.com:csfw/documentation/generated/aurora_rst_html_mpeddemo.git")
 
-    artifact_sha = create_artifact_commit(rbgit, args.artifact_name, args.binpath)
+    artifact_sha = create_artifact_commit(rbgit, args.name, args.path)
     if artifact_sha:
         print(rbgit.cmd("log", "-1", artifact_sha))
     print(rbgit.cmd("branch", "-vv"))
