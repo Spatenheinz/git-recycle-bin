@@ -104,7 +104,7 @@ def rel_dir(context, query):
 
 
 
-def create_artifact_commit(artifact_name: str, binpath: str) -> str:
+def create_artifact_commit(rbgit, artifact_name: str, binpath: str) -> str:
     """ Create Artifact: A binary commit, with builtin traceability and expiry """
     artifact_name_sane = sanitize_branch_name(artifact_name)
     if artifact_name != artifact_name_sane:
@@ -127,11 +127,8 @@ def create_artifact_commit(artifact_name: str, binpath: str) -> str:
 
     branch_name = f"auto/checkpoint/{src_repo}/{src_sha}/{artifact_name}"
 
-    nca_dir     = nca_path(src_tree_pwd, binpath)
     binpath_rel = rel_dir(src_tree_pwd, binpath)
 
-    rbgit = RbGit(rbgit_dir=f"{nca_dir}/.rbgit", rbgit_work_tree=nca_dir)
-    rbgit.init_idempotent()
     rbgit.checkout_orphan_idempotent(branch_name)
 
     print(f"Adding '{binpath}' as '{binpath_rel}' ...", file=sys.stderr)
@@ -178,7 +175,11 @@ def main():
 
     args = parser.parse_args()
 
-    create_artifact_commit(args.artifact_name, args.binpath)
+    src_tree_pwd = os.getcwd()
+    nca_dir = nca_path(src_tree_pwd, args.binpath)
+    rbgit = RbGit(rbgit_dir=f"{nca_dir}/.rbgit", rbgit_work_tree=nca_dir)
+
+    create_artifact_commit(rbgit, args.artifact_name, args.binpath)
 
 if __name__ == "__main__":
     main()

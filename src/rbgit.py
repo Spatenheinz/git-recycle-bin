@@ -5,6 +5,7 @@ class RbGit:
     def __init__(self, rbgit_dir=None, rbgit_work_tree=None):
         self.rbgit_dir = rbgit_dir if rbgit_dir else os.environ["RBGIT_DIR"]
         self.rbgit_work_tree = rbgit_work_tree if rbgit_work_tree else os.environ["RBGIT_WORK_TREE"]
+        self.init_idempotent()
 
     def cmd(self, *args, input=None):
         # Override environment variables
