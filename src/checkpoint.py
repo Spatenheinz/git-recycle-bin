@@ -73,7 +73,8 @@ def rel_dir(context, query):
 
 
 
-def create_checkpoint(artifact_name: str, binpath: str):
+def create_artifact_commit(artifact_name: str, binpath: str) -> str:
+    """ Create Artifact: A binary commit, with builtin traceability and expiry """
     ttl = "30 days"
 
     # TODO: Test for binpath existence
@@ -141,7 +142,7 @@ def main():
 
     args = parser.parse_args()
 
-    create_checkpoint(args.artifact_name, args.binpath)
+    create_artifact_commit(args.artifact_name, args.binpath)
 
 if __name__ == "__main__":
     main()
