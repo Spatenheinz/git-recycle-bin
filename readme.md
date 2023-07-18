@@ -12,13 +12,19 @@ Unlike many artifact management systems out there, the artifacts published here 
 
 
 # Usage
-
-TODO
+* Locally or CI-side, this tool creates and pushes artifacts, see `--help and examples below.
+* Garbage collection of expired artifacts is done at CI-side. TBD.
+* Setting of current latest tags is done at CI-side. TBD.
 
 
 # Usage example 1
 ```
-eisbaw in kbnuxcsfw-mped in git on  HEAD (8bf06b0) [?]
-❯ , just -f /scratch/git-recycle-bin/justfile checkpoint Documentation ../obj/doc
+artifact.py --path ../obj/doc/html --name "Aurora-RST-Documentation" --remote "git@gitlab.ci.demant.com:csfw/documentation/generated/aurora_rst_html_mpeddemo.git" --push
 ```
+
+This will:
+
+  1. Create a new git repo locally, to ensure non-interference with source repo.
+  2. Create a new binary artifact git commit for the HTML folder and assign it a name and expiry.
+  3. Push the artifact commit to the remote.
 

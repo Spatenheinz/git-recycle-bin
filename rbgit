@@ -1,6 +1,0 @@
-#!/usr/bin/env bash
-
-export GIT_DIR="${RBGIT_DIR:-$PWD/.rbgit}"
-export GIT_WORK_TREE="${RBGIT_WORK_TREE:-$PWD}"
-
-exec git "$@"
