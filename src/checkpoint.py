@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import re
 import sys
 import argparse
 import subprocess
@@ -41,6 +42,36 @@ def string_trunc_ellipsis(maxlen: int, longstr: str) -> str:
         return shortstr
 
 
+def sanitize_branch_name(name: str) -> str:
+    """
+        Git branch names cannot contain: whitespace characters, ~, ^, :, [, ? or *.
+        Also they cannot start with / or -, end with ., or contain multiple consecutive /
+        Finally, they cannot be @, @{, or have two consecutive dots ..
+    """
+
+    # replace unsafe characters with _
+    sanitized_name = re.sub(r'[\s~^:\[\]?*]', '_', name)
+
+    # replace starting / or - with _
+    sanitized_name = re.sub(r'^[-/]', '_', sanitized_name)
+
+    # replace ending . with _
+    sanitized_name = re.sub(r'\.$', '_', sanitized_name)
+
+    # replace // with /
+    sanitized_name = re.sub(r'//', '/', sanitized_name)
+
+    # replace .. with .
+    sanitized_name = re.sub(r'\.\.', '.', sanitized_name)
+
+    # replace @ and @{ with _
+    if sanitized_name in ('@', '@{'):
+        sanitized_name = '_'
+
+    return sanitized_name
+
+
+
 def exec(command):
     print("Run:", command)
     return subprocess.check_output(command, text=True).strip()
@@ -75,6 +106,11 @@ def rel_dir(context, query):
 
 def create_artifact_commit(artifact_name: str, binpath: str) -> str:
     """ Create Artifact: A binary commit, with builtin traceability and expiry """
+    artifact_name_sane = sanitize_branch_name(artifact_name)
+    if artifact_name != artifact_name_sane:
+        print(f"Warning: Sanitized '{artifact_name}' to '{artifact_name_sane}'.", file=sys.stderr)
+        artifact_name = artifact_name_sane
+
     ttl = "30 days"
 
     # TODO: Test for binpath existence
