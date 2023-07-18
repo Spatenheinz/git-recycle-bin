@@ -135,9 +135,8 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str) -> str:
     changes = rbgit.add(binpath)
     if changes == False:
         print("No changes for the next commit", file=sys.stderr)
-        return
+        return None
 
-    # Preparing commit message
     commit_msg = f"""
         artifact: {src_repo}@{src_sha_short}: {artifact_name} @({string_trunc_ellipsis(30, src_sha_title).strip()})
 
@@ -157,13 +156,13 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str) -> str:
         + prefix_lines(prefix="src-git-status: ", lines=src_status)
 
     # Set {author,committer}-dates: Make our new commit reproducible by copying from the source; do not sample the current time.
-    print("Committing", file=sys.stderr)
     os.environ['GIT_AUTHOR_DATE'] = exec(["git", "show", "-s", "--format=%aD", src_sha])
     os.environ['GIT_COMMITTER_DATE'] = exec(["git", "show", "-s", "--format=%cD", src_sha])
     rbgit.cmd("commit", "--file", "-", "--quiet", "--no-status", "--untracked-files=no", input=trim_all_lines(commit_msg))
-    print(rbgit.cmd("log", "-1", "HEAD"))
 
-
+    artifact_sha = rbgit.cmd("rev-parse", "HEAD").strip()
+    print(f"Committed {artifact_sha}", file=sys.stderr)
+    return artifact_sha
 
 
 
@@ -179,7 +178,10 @@ def main():
     nca_dir = nca_path(src_tree_pwd, args.binpath)
     rbgit = RbGit(rbgit_dir=f"{nca_dir}/.rbgit", rbgit_work_tree=nca_dir)
 
-    create_artifact_commit(rbgit, args.artifact_name, args.binpath)
+    artifact_sha = create_artifact_commit(rbgit, args.artifact_name, args.binpath)
+    if artifact_sha:
+        print(rbgit.cmd("log", "-1", artifact_sha))
+
 
 if __name__ == "__main__":
     main()
