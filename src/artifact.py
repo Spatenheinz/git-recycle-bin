@@ -119,7 +119,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str) -> str:
     src_sha_short = exec(["git", "rev-parse", "--short", "HEAD"])  # human readable
     src_sha_msg   = exec(["git", "show", "--no-patch", "--format=%B", src_sha])
     src_sha_title = src_sha_msg.split('\n')[0]  # title is first line of commit-msg
-    src_branch    = exec(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+    src_branch    = exec(["git", "rev-parse", "--abbrev-ref", "HEAD"]); src_branch = src_branch if src_branch != "HEAD" else "Detached HEAD"
     src_repo_url  = exec(["git", "config", "--get", f"remote.{src_remote_name}.url"])
     src_repo      = os.path.basename(src_repo_url)
     src_tree_pwd  = os.getcwd()
