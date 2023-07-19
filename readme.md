@@ -12,7 +12,7 @@ Unlike many artifact management systems out there, the artifacts published here 
 
 
 # Usage
-* Locally or CI-side, this tool creates and pushes artifacts, see `--help and examples below.
+* Locally or CI-side, this tool creates and pushes artifacts, see `--help` and examples below.
 * Garbage collection of expired artifacts is done at CI-side. TBD.
 * Setting of current latest tags is done at CI-side. TBD.
 
