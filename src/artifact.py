@@ -143,7 +143,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str) -> str:
         This is a (binary) artifact with expiry. Expiry can be changed.
         See https://gitlab.ci.demant.com/csfw/flow/git-recycle-bin#usage
 
-        artifact-scheme-version: 1
+        artifact-schema-version: 1
         artifact-name: {artifact_name}
         artifact-path: {binpath_rel}
         artifact-time-to-live: {ttl}
