@@ -93,7 +93,7 @@ def nca_path(pathA, pathB):
     return common_path
 
 
-def rel_dir(context, query):
+def nca_rel_dir(context, query):
     """ Get relative path to query from NCA(context,query) """
     abs_context = os.path.abspath(context)
     abs_query = os.path.abspath(query)
@@ -127,7 +127,8 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str) -> str:
 
     branch_name = f"auto/checkpoint/{src_repo}/{src_sha}/{artifact_name}"
 
-    binpath_rel = rel_dir(src_tree_pwd, binpath)
+    nca_dir = nca_path(src_tree_pwd, binpath)
+    binpath_rel = nca_rel_dir(src_tree_pwd, binpath)
 
     rbgit.checkout_orphan_idempotent(branch_name)
 
