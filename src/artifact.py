@@ -157,6 +157,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str) -> str:
     """
 
     # Set {author,committer}-dates: Make our new commit reproducible by copying from the source; do not sample the current time.
+    # Sampling the current time would lead to new commit SHA every time, thus not idempotent.
     os.environ['GIT_AUTHOR_DATE'] = exec(["git", "show", "-s", "--format=%aD", src_sha])
     os.environ['GIT_COMMITTER_DATE'] = exec(["git", "show", "-s", "--format=%cD", src_sha])
     rbgit.cmd("commit", "--file", "-", "--quiet", "--no-status", "--untracked-files=no", input=trim_all_lines(commit_msg))
@@ -186,6 +187,7 @@ def main():
     parser.add_argument("--remote", required=False, type=str, default=os.getenv('GITRB_REMOTE'), help="Git remote URL to push artifact to.")
     parser.add_argument("--push", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH', 'False'), help="Perform push to remote.")
     parser.add_argument("--verbose", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_VERBOSE', 'False'), help="Enable verbose mode.")
+    # TODO: Implement verbose mode
     # TODO: Add --clean to delete the .rbgit repo, or like docker's --rm
     # TODO: Add --submodule to add a src/ submodule back to the src-repo.
     # TODO: Create other script for the bin-side: CI expiry / branch-deletion.
