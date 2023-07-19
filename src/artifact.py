@@ -15,7 +15,7 @@ def trim_all_lines(input_string):
 
 
 def prefix_lines(lines: str, prefix: str) -> str:
-    return "\n".join([prefix+line for line in lines.split('\n')])
+    return "\n".join(f"{prefix}{line}" for line in lines.split("\n") if line)
 
 
 def extract_gerrit_change_id(commit_message: str, prefix: str) -> str:
