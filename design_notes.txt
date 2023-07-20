@@ -1,0 +1,89 @@
+Build process is a function:  build = {src,target} : bin.
+
+src has repo.
+bin has repo.
+
+bin refers back to src. Either atomically or via post-glue.
+src can't atomically {refer to, contain} bin as that would be a merkle DAG collision. Only via post-glue.
+
+Post-glue := Non-intrusive state glued on externally afterwards:
+    1) src can have a git notes branch of where OK-binaries exists (in {git bin repo, NFS, artifactory, etc})
+    2) src can have a git tag on each commit, of sha in binary repo holding the OK-binaries.
+    MPED: Prefer 1 ie git-notes as they are future-proof in {scope, content}.
+
+Post-glue can always be added/changed/redesigned, but the atomic design of bin repo needs upfront consideration:
+
+    bin repo can atomically refer back to src repo SHA in some ways:
+    1) commit tree: bin can have src/ as submodule (shallow update=none) which points to src SHA. Commit on tag or branch.
+    2) commit msg:  bin can put src SHA in commit message. Commit on tag or branch.
+    3) raw {tree,hash}-object held alive by a tag.
+    The non-atomic post-glue would be:
+    4) bin can put src SHA in tag-name on the commit.
+    5) bin can put src SHA as [annotated tag]-name on the commit.
+    6) bin can put src SHA as git-note on the commit.
+    MPED: Prefer 1 ie submodule as that is more native and can easily be checked out - and clicked on in UIs. Policy lives in .gitmodules, not our own stuff.
+
+
+Considerations for bin repo design:
+    a) Garbage collection of unneeded bin-artifacts.
+            GC requires we can detach references from the commit. This is easy if there are no refs from parent-commits, i.e no parents.
+            No parents means the commit will be a new root, only containing itself on this commit history DAG.
+            We can choose to use either branches or tags for this. Only branches can be directly checked out. See tag wisdom below.
+
+    b) O(1) lookup time: Resolve src-SHA to bin-artifact fast.
+            We can have a ref (branch or tag) refer to the bin-artifact by the src-SHA via convention:
+                E.g.: branch auto/SomePrefix/${SRC_REPO}/${SRC_SHA}/${target_sanitized}
+                for example: auto/SomePrefix/firmware/abbabeef/fwbase-hi2
+                - which is a branch that holds 1 commit: Where message contains the {build agent+environment+src-branch name}, and treeish holds the {artifacts+submodule+build-command/script}.
+                                                         The commit message can also hold the target-command line, but the build target command may also be useful to re-run (for audit,validation).
+
+            This branch name convention should (modulo environmental changes), make idempotency possible:
+            We can quickly check if src-SHA exists and what targets from it has been built, and build what may be missing.
+
+    c) Name space collision/pollution.
+
+    This branch having 1 commit is also known as an orphan branch.
+    This branch having 1 commit can be deleted. This will only delete the ref, not the artifact blobs. Blobs can be GC'd.
+    Let's say all such 1-commit branches are ephemeral by default meaning deleted after, say, 30 days.
+    During these 30 days, we as Manufacturer can protect the orphan branches' blobs or even the whole orphan branch:
+        Only blobs: Add a merge commit on a "Release" branch - this adds a ref on the blobs. But we lose the branch ref name.
+        Whole branch: Add another branch with some other Prefix.
+        Extend the branch by one more commit, which could be empty. The important thing would be the commit message:
+                                                                        - Explanation: Is this a release or a customer who wants to keep it around.
+                                                                        - Reset the TTL in the first commit.
+
+Consolidating this into a tangible example:
+
+    src repo: firmware       on gerrit or gitlab
+    bin repo: firmware.bin   on gitlab
+
+    Assume src repo has SHA ABBABEEF42.
+    Some CI agent runs 'forge fwbase-hi2' on firmware@ABBABEEF42 successfully, producing obj/fwbase-hi2/ directory.
+
+    We commit obj/fwbase-hi2/ on firmware.bin as new orphan branch 'auto/src2bin/firmware/ABBABEEF42/fwbase-hi2'.
+    We commit obj/fwbase-hi2/ as obj/fwbase-hi2/ using 1:1 folder mapping in this case[1].
+    The commit has a message headline of "auto: firmware@ABBABEEF42: Build of fwbase-hi2"
+    The commit has a message body of "TTL: 30 days".
+    This commit is pushed to firmware.bin repo.
+    Each day, a CI job looks at all auto/src2bin/*-branches' HEAD commit:
+        If current time now >= commit.time + commit.message.body.TTL then we delete the branch.
+        If commit.message.body does not have a TTL field, we treat it as Infinite.
+
+        TTL lives with the commit and could be changed without any new deployment.
+        gen_7.0 could get a higher TTL than feature/foo branch.
+        This strategy will let anyone protect a branch by adding a commit without the TTL-field.
+        Or let anyone add-back or change the TTL of a branch.
+        This would also work with amend and force push (but discouraged).
+        Branches can be cloned directly, tags cannot.
+        Commits are better for containing data than short tags. We can add other traceability meta-data in later. E.g. source-repo branch having ABBABEEF42.
+
+    [1] other repos may want to have this become the new root, but 1:1 means multiple targets from different orphan branches can be merged without conflicts.
+
+
+
+Tag wisdom:
+    - Lightweight tags are just mutable pointers. Therefore races can occur. No message or date. Best-practise is to consider them Private.
+    - Annotated tags are immutable + have commit message. Good for release notes. Best-practise is to consider them Public.
+    - All tags live in the same global flat namespace.
+    - Can't clone directly from tag. Only branches can be cloned directly.
+
