@@ -1,0 +1,12 @@
+stages:
+  - test
+
+default:
+  tags:
+    - csfw-minion
+
+unittest:
+  stage: test
+  script:
+    - nix-shell --pure --run "just unittest"
+
