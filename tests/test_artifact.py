@@ -14,3 +14,6 @@ def test_extract_gerrit_change_id():
 
 def test_string_trunc_ellipsis():
     assert artifact.string_trunc_ellipsis(5, "hello world") == "he..."
+
+def test_date_formatted2unix():
+	assert artifact.date_formatted2unix("Wed, 21 Jun 2023 14:13:31 +0200", "%a, %d %b %Y %H:%M:%S %z") == 1687349611

@@ -5,8 +5,13 @@ import sys
 import argparse
 import subprocess
 from itertools import takewhile
+from datetime import datetime
 
 from rbgit import RbGit
+
+# Don't change the date format! This could break parsing
+date_fmt = "%a, %d %b %Y %H:%M:%S %z"
+
 
 def trim_all_lines(input_string):
     lines = input_string.split('\n')
@@ -101,6 +106,13 @@ def nca_rel_dir(context, query):
     return os.path.relpath(abs_query, common_path)
 
 
+def date_formatted2unix(date_string: str, date_format: str):
+    """
+        E.g.
+            date_formatted2unix("Wed, 21 Jun 2023 14:13:31 +0200", "%a, %d %b %Y %H:%M:%S %z")
+    """
+    unix_time = datetime.strptime(date_string, date_format).timestamp()
+    return unix_time
 
 
 
@@ -121,12 +133,12 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str) -> str:
 
     # Author time is when the commit was first committed.
     # Author time is easily set with `git commit --date`.
-    src_time_author  = exec(["git", "show", "-s", "--format=%aD", src_sha])
+    src_time_author  = exec(["git", "show", "-s", "--format=%ad", f"--date=format:{date_fmt}", src_sha])
 
     # Commiter time changes every time the commit-SHA changes, for example {rebasing, amending, ...}.
     # Commiter time can be set with $GIT_COMMITTER_DATE or `git rebase --committer-date-is-author-date`.
     # Commiter time is monotonically increasing but sampled locally, so graph could still be non-monotonic if a collaborator has a very wrong clock.
-    src_time_commit  = exec(["git", "show", "-s", "--format=%cD", src_sha])
+    src_time_commit  = exec(["git", "show", "-s", "--format=%cd", f"--date=format:{date_fmt}", src_sha])
 
     src_branch       = exec(["git", "rev-parse", "--abbrev-ref", "HEAD"]); src_branch = src_branch if src_branch != "HEAD" else "Detached HEAD"
     src_repo_url     = exec(["git", "config", "--get", f"remote.{src_remote_name}.url"])
