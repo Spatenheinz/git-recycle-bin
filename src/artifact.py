@@ -115,15 +115,24 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str) -> str:
 
     # TODO: Test for binpath existence
     src_remote_name = "origin"    # TODO: Expose as argument
-    src_sha       = exec(["git", "rev-parse", "HEAD"])  # full sha
-    src_sha_short = exec(["git", "rev-parse", "--short", "HEAD"])  # human readable
-    src_sha_msg   = exec(["git", "show", "--no-patch", "--format=%B", src_sha])
-    src_sha_title = src_sha_msg.split('\n')[0]  # title is first line of commit-msg
-    src_branch    = exec(["git", "rev-parse", "--abbrev-ref", "HEAD"]); src_branch = src_branch if src_branch != "HEAD" else "Detached HEAD"
-    src_repo_url  = exec(["git", "config", "--get", f"remote.{src_remote_name}.url"])
-    src_repo      = os.path.basename(src_repo_url)
-    src_tree_root = exec(["git", "rev-parse", "--show-toplevel"])
-    src_status    = exec(["git", "status", "--porcelain=1", "--untracked-files=no"]); src_status = src_status if src_status != "" else "clean"
+    src_sha          = exec(["git", "rev-parse", "HEAD"])  # full sha
+    src_sha_short    = exec(["git", "rev-parse", "--short", "HEAD"])  # human readable
+    src_sha_msg      = exec(["git", "show", "--no-patch", "--format=%B", src_sha]); src_sha_title = src_sha_msg.split('\n')[0]  # title is first line of commit-msg
+
+    # Author time is when the commit was first committed.
+    # Author time is easily set with `git commit --date`.
+    src_time_author  = exec(["git", "show", "-s", "--format=%aD", src_sha])
+
+    # Commiter time changes every time the commit-SHA changes, for example {rebasing, amending, ...}.
+    # Commiter time can be set with $GIT_COMMITTER_DATE or `git rebase --committer-date-is-author-date`.
+    # Commiter time is monotonically increasing but sampled locally, so graph could still be non-monotonic if a collaborator has a very wrong clock.
+    src_time_commit  = exec(["git", "show", "-s", "--format=%cD", src_sha])
+
+    src_branch       = exec(["git", "rev-parse", "--abbrev-ref", "HEAD"]); src_branch = src_branch if src_branch != "HEAD" else "Detached HEAD"
+    src_repo_url     = exec(["git", "config", "--get", f"remote.{src_remote_name}.url"])
+    src_repo         = os.path.basename(src_repo_url)
+    src_tree_root    = exec(["git", "rev-parse", "--show-toplevel"])
+    src_status       = exec(["git", "status", "--porcelain=1", "--untracked-files=no"]); src_status = src_status if src_status != "" else "clean"
 
     branch_name = f"auto/checkpoint/{src_repo}/{src_sha}/{artifact_name}"
 
@@ -149,6 +158,8 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str) -> str:
         artifact-path: {binpath_rel}
         artifact-time-to-live: {ttl}
         src-git-commit-title: {src_sha_title}
+        src-git-commit-time-author: {src_time_author}
+        src-git-commit-time-commit: {src_time_commit}
         src-git-commit-sha: {src_sha}
         src-git-branch: {src_branch}
         src-git-repo: {src_repo}
@@ -159,8 +170,8 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str) -> str:
 
     # Set {author,committer}-dates: Make our new commit reproducible by copying from the source; do not sample the current time.
     # Sampling the current time would lead to new commit SHA every time, thus not idempotent.
-    os.environ['GIT_AUTHOR_DATE'] = exec(["git", "show", "-s", "--format=%aD", src_sha])
-    os.environ['GIT_COMMITTER_DATE'] = exec(["git", "show", "-s", "--format=%cD", src_sha])
+    os.environ['GIT_AUTHOR_DATE'] = src_time_author
+    os.environ['GIT_COMMITTER_DATE'] = src_time_commit
     rbgit.cmd("commit", "--file", "-", "--quiet", "--no-status", "--untracked-files=no", input=trim_all_lines(commit_msg))
 
     artifact_sha = rbgit.cmd("rev-parse", "HEAD").strip()
