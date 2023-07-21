@@ -116,6 +116,40 @@ def date_formatted2unix(date_string: str, date_format: str):
 
 
 
+def emit_commit_msg(artifact_name,artifact_path,ttl,
+                    src_branch,src_repo,src_repo_url,src_sha,src_sha_msg,src_sha_short,src_sha_title,src_status,src_time_author,src_time_commit):
+    commit_msg = f"""
+        artifact: {src_repo}@{src_sha_short}: {artifact_name} @({string_trunc_ellipsis(30, src_sha_title).strip()})
+
+        This is a (binary) artifact with expiry. Expiry can be changed.
+        See https://gitlab.ci.demant.com/csfw/flow/git-recycle-bin#usage
+
+        artifact-schema-version: 1
+        artifact-name: {artifact_name}
+        artifact-path: {artifact_path}
+        artifact-time-to-live: {ttl}
+        src-git-commit-title: {src_sha_title}
+        src-git-commit-time-author: {src_time_author}
+        src-git-commit-time-commit: {src_time_commit}
+        src-git-commit-sha: {src_sha}
+        src-git-branch: {src_branch}
+        src-git-repo: {src_repo}
+        src-git-repo-url: {src_repo_url}
+        {extract_gerrit_change_id(src_sha_msg, "src-git-commit-changeid: ")}
+        {prefix_lines(prefix="src-git-status: ", lines=trim_all_lines(src_status))}
+    """
+    return trim_all_lines(commit_msg)
+
+
+def parse_commit_msg(commit_msg):
+    lines = commit_msg.strip().split('\n')
+    # Create a dictionary by splitting each line at the colon and stripping the results
+    # NOTE: This does not handle multi-line git trailers correctly, e.g. src-git-status
+    commit_dict = {key.strip(): value.strip() for key, value in (line.split(':', 1) for line in lines)}
+    return commit_dict
+
+
+
 def create_artifact_commit(rbgit, artifact_name: str, binpath: str) -> str:
     """ Create Artifact: A binary commit, with builtin traceability and expiry """
     artifact_name_sane = sanitize_branch_name(artifact_name)
@@ -159,32 +193,27 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str) -> str:
         print("No changes for the next commit", file=sys.stderr)
         return None, branch_name
 
-    commit_msg = f"""
-        artifact: {src_repo}@{src_sha_short}: {artifact_name} @({string_trunc_ellipsis(30, src_sha_title).strip()})
-
-        This is a (binary) artifact with expiry. Expiry can be changed.
-        See https://gitlab.ci.demant.com/csfw/flow/git-recycle-bin#usage
-
-        artifact-schema-version: 1
-        artifact-name: {artifact_name}
-        artifact-path: {binpath_rel}
-        artifact-time-to-live: {ttl}
-        src-git-commit-title: {src_sha_title}
-        src-git-commit-time-author: {src_time_author}
-        src-git-commit-time-commit: {src_time_commit}
-        src-git-commit-sha: {src_sha}
-        src-git-branch: {src_branch}
-        src-git-repo: {src_repo}
-        src-git-repo-url: {src_repo_url}
-        {extract_gerrit_change_id(src_sha_msg, "src-git-commit-changeid: ")}
-        {prefix_lines(prefix="src-git-status: ", lines=trim_all_lines(src_status))}
-    """
+    commit_msg = emit_commit_msg(
+        artifact_name = artifact_name,
+        artifact_path = binpath_rel,
+        ttl = ttl,
+        src_branch = src_branch,
+        src_repo = src_repo,
+        src_repo_url = src_repo_url,
+        src_sha = src_sha,
+        src_sha_msg = src_sha_msg,
+        src_sha_short = src_sha_short,
+        src_sha_title = src_sha_title,
+        src_status = src_status,
+        src_time_author = src_time_author,
+        src_time_commit = src_time_commit,
+    )
 
     # Set {author,committer}-dates: Make our new commit reproducible by copying from the source; do not sample the current time.
     # Sampling the current time would lead to new commit SHA every time, thus not idempotent.
     os.environ['GIT_AUTHOR_DATE'] = src_time_author
     os.environ['GIT_COMMITTER_DATE'] = src_time_commit
-    rbgit.cmd("commit", "--file", "-", "--quiet", "--no-status", "--untracked-files=no", input=trim_all_lines(commit_msg))
+    rbgit.cmd("commit", "--file", "-", "--quiet", "--no-status", "--untracked-files=no", input=commit_msg)
 
     artifact_sha = rbgit.cmd("rev-parse", "HEAD").strip()
     print(f"Committed {artifact_sha}", file=sys.stderr)
