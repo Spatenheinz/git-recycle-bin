@@ -66,3 +66,6 @@ class RbGit:
         except RuntimeError:
             # If the remote already exists, set its URL
             self.cmd("remote", "set-url", name, url)
+
+    def fetch_only_tags(self, remote: str):
+        self.cmd("fetch", remote, 'refs/tags/*:refs/tags/*')

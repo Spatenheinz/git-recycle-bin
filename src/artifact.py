@@ -262,6 +262,7 @@ def main():
         rbgit.add_remote_idempotent(name=remote_bin_name, url=args.remote)
     if args.push:
         rbgit.cmd("push", remote_bin_name, branch_name, capture_output=False)  # pushing may take long, so always show stdout and stderr without capture
+        rbgit.fetch_only_tags(remote_bin_name)
 
 
 if __name__ == "__main__":
