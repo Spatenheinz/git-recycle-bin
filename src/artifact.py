@@ -257,10 +257,11 @@ def main():
     if artifact_sha:
         print(rbgit.cmd("log", "-1", branch_name))
 
+    remote_bin_name = "recyclebin"
     if args.remote:
-        rbgit.add_remote_idempotent(name="recyclebin", url=args.remote)
+        rbgit.add_remote_idempotent(name=remote_bin_name, url=args.remote)
     if args.push:
-        rbgit.cmd("push", "recyclebin", branch_name, capture_output=False)  # pushing may take long, so always show stdout and stderr without capture
+        rbgit.cmd("push", remote_bin_name, branch_name, capture_output=False)  # pushing may take long, so always show stdout and stderr without capture
 
 
 if __name__ == "__main__":
