@@ -116,27 +116,26 @@ def date_formatted2unix(date_string: str, date_format: str):
 
 
 
-def emit_commit_msg(artifact_name,artifact_path,ttl,
-                    src_branch,src_repo,src_repo_url,src_sha,src_sha_msg,src_sha_short,src_sha_title,src_status,src_time_author,src_time_commit):
+def emit_commit_msg(d: dict):
     commit_msg = f"""
-        artifact: {src_repo}@{src_sha_short}: {artifact_name} @({string_trunc_ellipsis(30, src_sha_title).strip()})
+        artifact: {d['src_repo']}@{d['src_sha_short']}: {d['artifact_name']} @({string_trunc_ellipsis(30, d['src_sha_title']).strip()})
 
         This is a (binary) artifact with expiry. Expiry can be changed.
         See https://gitlab.ci.demant.com/csfw/flow/git-recycle-bin#usage
 
         artifact-schema-version: 1
-        artifact-name: {artifact_name}
-        artifact-path: {artifact_path}
-        artifact-time-to-live: {ttl}
-        src-git-commit-title: {src_sha_title}
-        src-git-commit-time-author: {src_time_author}
-        src-git-commit-time-commit: {src_time_commit}
-        src-git-commit-sha: {src_sha}
-        src-git-branch: {src_branch}
-        src-git-repo: {src_repo}
-        src-git-repo-url: {src_repo_url}
-        {extract_gerrit_change_id(src_sha_msg, "src-git-commit-changeid: ")}
-        {prefix_lines(prefix="src-git-status: ", lines=trim_all_lines(src_status))}
+        artifact-name: {d['artifact_name']}
+        artifact-path: {d['artifact_path']}
+        artifact-time-to-live: {d['ttl']}
+        src-git-commit-title: {d['src_sha_title']}
+        src-git-commit-time-author: {d['src_time_author']}
+        src-git-commit-time-commit: {d['src_time_commit']}
+        src-git-commit-sha: {d['src_sha']}
+        src-git-branch: {d['src_branch']}
+        src-git-repo: {d['src_repo']}
+        src-git-repo-url: {d['src_repo_url']}
+        {extract_gerrit_change_id(d['src_sha_msg'], "src-git-commit-changeid: ")}
+        {prefix_lines(prefix="src-git-status: ", lines=trim_all_lines(d['src_status']))}
     """
     return trim_all_lines(commit_msg)
 
@@ -157,67 +156,62 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, ttl: str = "
         print(f"Warning: Sanitized '{artifact_name}' to '{artifact_name_sane}'.", file=sys.stderr)
         artifact_name = artifact_name_sane
 
+    d = {}
+    d['artifact_name'] = artifact_name
+    d['binpath'] = binpath
+    d['ttl'] = ttl
+
     # TODO: Test for binpath existence
-    src_remote_name = "origin"    # TODO: Expose as argument
-    src_sha          = exec(["git", "rev-parse", "HEAD"])  # full sha
-    src_sha_short    = exec(["git", "rev-parse", "--short", "HEAD"])  # human readable
-    src_sha_msg      = exec(["git", "show", "--no-patch", "--format=%B", src_sha]); src_sha_title = src_sha_msg.split('\n')[0]  # title is first line of commit-msg
+    d['src_remote_name'] = "origin"    # TODO: Expose as argument
+    d['src_sha']          = exec(["git", "rev-parse", "HEAD"])  # full sha
+    d['src_sha_short']    = exec(["git", "rev-parse", "--short", "HEAD"])  # human readable
+    d['src_sha_msg']      = exec(["git", "show", "--no-patch", "--format=%B", d['src_sha']]);
+    d['src_sha_title']    = d['src_sha_msg'].split('\n')[0]  # title is first line of commit-msg
 
     # Author time is when the commit was first committed.
     # Author time is easily set with `git commit --date`.
-    src_time_author  = exec(["git", "show", "-s", "--format=%ad", f"--date=format:{date_fmt}", src_sha])
+    d['src_time_author']  = exec(["git", "show", "-s", "--format=%ad", f"--date=format:{date_fmt}", d['src_sha']])
 
     # Commiter time changes every time the commit-SHA changes, for example {rebasing, amending, ...}.
     # Commiter time can be set with $GIT_COMMITTER_DATE or `git rebase --committer-date-is-author-date`.
     # Commiter time is monotonically increasing but sampled locally, so graph could still be non-monotonic if a collaborator has a very wrong clock.
-    src_time_commit  = exec(["git", "show", "-s", "--format=%cd", f"--date=format:{date_fmt}", src_sha])
+    d['src_time_commit']  = exec(["git", "show", "-s", "--format=%cd", f"--date=format:{date_fmt}", d['src_sha']])
 
-    src_branch       = exec(["git", "rev-parse", "--abbrev-ref", "HEAD"]); src_branch = src_branch if src_branch != "HEAD" else "Detached HEAD"
-    src_repo_url     = exec(["git", "config", "--get", f"remote.{src_remote_name}.url"])
-    src_repo         = os.path.basename(src_repo_url)
-    src_tree_root    = exec(["git", "rev-parse", "--show-toplevel"])
-    src_status       = exec(["git", "status", "--porcelain=1", "--untracked-files=no"]); src_status = src_status if src_status != "" else "clean"
+    d['src_branch']       = exec(["git", "rev-parse", "--abbrev-ref", "HEAD"]); d['src_branch'] = d['src_branch'] if d['src_branch'] != "HEAD" else "Detached HEAD"
+    d['src_repo_url']     = exec(["git", "config", "--get", f"remote.{d['src_remote_name']}.url"])
+    d['src_repo']         = os.path.basename(d['src_repo_url'])
+    d['src_tree_root']    = exec(["git", "rev-parse", "--show-toplevel"])
+    d['src_status']       = exec(["git", "status", "--porcelain=1", "--untracked-files=no"]); d['src_status'] = d['src_status'] if d['src_status'] != "" else "clean"
 
-    bin_branch_name = f"auto/checkpoint/{src_repo}/{src_sha}/{artifact_name}"
+    d['bin_branch_name'] = f"auto/checkpoint/{d['src_repo']}/{d['src_sha']}/{artifact_name}"
 
-    nca_dir = nca_path(src_tree_root, binpath)
-    binpath_rel = nca_rel_dir(src_tree_root, binpath)
+    d['nca_dir'] = nca_path(d['src_tree_root'], binpath)
+    d['artifact_path'] = nca_rel_dir(d['src_tree_root'], binpath)
 
-    rbgit.checkout_orphan_idempotent(bin_branch_name)
+    rbgit.checkout_orphan_idempotent(d['bin_branch_name'])
 
-    print(f"Adding '{binpath}' as '{binpath_rel}' ...", file=sys.stderr)
+    print(f"Adding '{binpath}' as '{d['artifact_path']}' ...", file=sys.stderr)
     changes = rbgit.add(binpath)
     if changes == False:
         print("No changes for the next commit", file=sys.stderr)
-        return None, bin_branch_name
+        d['bin_sha'] = None
+        return d
 
-    commit_msg = emit_commit_msg(
-        artifact_name = artifact_name,
-        artifact_path = binpath_rel,
-        ttl = ttl,
-        src_branch = src_branch,
-        src_repo = src_repo,
-        src_repo_url = src_repo_url,
-        src_sha = src_sha,
-        src_sha_msg = src_sha_msg,
-        src_sha_short = src_sha_short,
-        src_sha_title = src_sha_title,
-        src_status = src_status,
-        src_time_author = src_time_author,
-        src_time_commit = src_time_commit,
+    d['bin_commit_msg'] = emit_commit_msg(
+        d
         # TODO: Add ahead behind
         # TODO: Add relative path from git root
     )
 
     # Set {author,committer}-dates: Make our new commit reproducible by copying from the source; do not sample the current time.
     # Sampling the current time would lead to new commit SHA every time, thus not idempotent.
-    os.environ['GIT_AUTHOR_DATE'] = src_time_author
-    os.environ['GIT_COMMITTER_DATE'] = src_time_commit
-    rbgit.cmd("commit", "--file", "-", "--quiet", "--no-status", "--untracked-files=no", input=commit_msg)
+    os.environ['GIT_AUTHOR_DATE'] = d['src_time_author']
+    os.environ['GIT_COMMITTER_DATE'] = d['src_time_commit']
+    rbgit.cmd("commit", "--file", "-", "--quiet", "--no-status", "--untracked-files=no", input=d['bin_commit_msg'])
 
-    artifact_sha = rbgit.cmd("rev-parse", "HEAD").strip()
-    print(f"Committed {artifact_sha}", file=sys.stderr)
-    return artifact_sha, bin_branch_name
+    d['bin_sha'] = rbgit.cmd("rev-parse", "HEAD").strip()
+    print(f"Committed {d['bin_sha']}", file=sys.stderr)
+    return d
 
 
 
@@ -252,16 +246,16 @@ def main():
     nca_dir = nca_path(src_tree_root, args.path)
     rbgit = RbGit(rbgit_dir=f"{nca_dir}/.rbgit", rbgit_work_tree=nca_dir)
 
-    artifact_sha, branch_name = create_artifact_commit(rbgit, args.name, args.path)
+    d = create_artifact_commit(rbgit, args.name, args.path)
     print(rbgit.cmd("branch", "-vv"))
-    if artifact_sha:
-        print(rbgit.cmd("log", "-1", branch_name))
+    if d['bin_sha']:
+        print(rbgit.cmd("log", "-1", d['bin_branch_name']))
 
     remote_bin_name = "recyclebin"
     if args.remote:
         rbgit.add_remote_idempotent(name=remote_bin_name, url=args.remote)
     if args.push:
-        rbgit.cmd("push", remote_bin_name, branch_name, capture_output=False)  # pushing may take long, so always show stdout and stderr without capture
+        rbgit.cmd("push", remote_bin_name, d['bin_branch_name'], capture_output=False)  # pushing may take long, so always show stdout and stderr without capture
         rbgit.fetch_only_tags(remote_bin_name)
 
 
