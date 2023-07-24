@@ -207,6 +207,8 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str) -> str:
         src_status = src_status,
         src_time_author = src_time_author,
         src_time_commit = src_time_commit,
+        # TODO: Add ahead behind
+        # TODO: Add relative path from git root
     )
 
     # Set {author,committer}-dates: Make our new commit reproducible by copying from the source; do not sample the current time.
@@ -217,7 +219,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str) -> str:
 
     artifact_sha = rbgit.cmd("rev-parse", "HEAD").strip()
     print(f"Committed {artifact_sha}", file=sys.stderr)
-    return artifact_sha, branch_name
+    return artifact_sha, bin_branch_name
 
 
 
