@@ -4,6 +4,7 @@ import re
 import sys
 import argparse
 import subprocess
+import mimetypes
 from itertools import takewhile
 from datetime import datetime
 
@@ -125,6 +126,7 @@ def emit_commit_msg(d: dict):
 
         artifact-schema-version: 1
         artifact-name: {d['artifact_name']}
+        artifact-mime: {d['artifact_mime']}
         artifact-relpath-nca: {d['artifact_relpath_nca']}
         artifact-relpath-src: {d['artifact_relpath_src']}
         artifact-time-to-live: {d['ttl']}
@@ -164,6 +166,12 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, ttl: str = "
     d['artifact_name'] = artifact_name
     d['binpath'] = binpath
     d['ttl'] = ttl
+
+    if os.path.isfile(binpath): d['artifact_mime'] = mimetypes.guess_type(binpath)
+    elif os.path.isdir(binpath): d['artifact_mime'] = "directory"
+    elif os.path.islink(binpath): d['artifact_mime'] = "link"
+    elif os.path.ismount(binpath): d['artifact_mime'] = "mount"
+    else: d['artifact_mime'] = "unknown"
 
     d['src_remote_name'] = "origin"    # TODO: Expose as argument
     d['src_sha']          = exec(["git", "rev-parse", "HEAD"])  # full sha
