@@ -98,12 +98,12 @@ def nca_path(pathA, pathB):
     return common_path
 
 
-def nca_rel_dir(context, query):
-    """ Get relative path to query from NCA(context,query) """
-    abs_context = os.path.abspath(context)
-    abs_query = os.path.abspath(query)
-    common_path = nca_path(abs_context, abs_query)
-    return os.path.relpath(abs_query, common_path)
+def rel_dir(pfrom, pto):
+    """ Get relative path to `pto` from `pfrom` """
+    abs_pfrom = os.path.abspath(pfrom)
+    abs_pto = os.path.abspath(pto)
+    return os.path.relpath(abs_pto, abs_pfrom)
+
 
 
 def date_formatted2unix(date_string: str, date_format: str):
@@ -125,16 +125,17 @@ def emit_commit_msg(d: dict):
 
         artifact-schema-version: 1
         artifact-name: {d['artifact_name']}
-        artifact-path: {d['artifact_path']}
+        artifact-relpath-nca: {d['artifact_relpath_nca']}
+        artifact-relpath-src: {d['artifact_relpath_src']}
         artifact-time-to-live: {d['ttl']}
         src-git-commit-title: {d['src_sha_title']}
+        src-git-commit-sha: {d['src_sha']}
+        {extract_gerrit_change_id(d['src_sha_msg'], "src-git-commit-changeid: ")}
         src-git-commit-time-author: {d['src_time_author']}
         src-git-commit-time-commit: {d['src_time_commit']}
-        src-git-commit-sha: {d['src_sha']}
         src-git-branch: {d['src_branch']}
         src-git-repo: {d['src_repo']}
         src-git-repo-url: {d['src_repo_url']}
-        {extract_gerrit_change_id(d['src_sha_msg'], "src-git-commit-changeid: ")}
         {prefix_lines(prefix="src-git-status: ", lines=trim_all_lines(d['src_status']))}
     """
     return trim_all_lines(commit_msg)
@@ -185,12 +186,14 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, ttl: str = "
 
     d['bin_branch_name'] = f"auto/checkpoint/{d['src_repo']}/{d['src_sha']}/{artifact_name}"
 
-    d['nca_dir'] = nca_path(d['src_tree_root'], binpath)
-    d['artifact_path'] = nca_rel_dir(d['src_tree_root'], binpath)
+    d['nca_dir'] = nca_path(d['src_tree_root'], binpath)                        # Longest shared path between gitroot and artifact. Is either {gitroot, something outside gitroot}
+    d['artifact_relpath_nca'] = rel_dir(pto=binpath, pfrom=d['nca_dir'])        # Relative path to artifact from nca_dir. Artifact is always within nca_dir
+    d['artifact_relpath_src'] = rel_dir(pto=binpath, pfrom=d['src_tree_root'])  # Relative path to artifact from src-git-root. Artifact might be outside of source git.
+
 
     rbgit.checkout_orphan_idempotent(d['bin_branch_name'])
 
-    print(f"Adding '{binpath}' as '{d['artifact_path']}' ...", file=sys.stderr)
+    print(f"Adding '{binpath}' as '{d['artifact_relpath_nca']}' ...", file=sys.stderr)
     changes = rbgit.add(binpath)
     if changes == False:
         print("No changes for the next commit", file=sys.stderr)
