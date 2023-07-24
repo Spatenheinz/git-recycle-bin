@@ -150,14 +150,12 @@ def parse_commit_msg(commit_msg):
 
 
 
-def create_artifact_commit(rbgit, artifact_name: str, binpath: str) -> str:
+def create_artifact_commit(rbgit, artifact_name: str, binpath: str, ttl: str = "30 days") -> str:
     """ Create Artifact: A binary commit, with builtin traceability and expiry """
     artifact_name_sane = sanitize_branch_name(artifact_name)
     if artifact_name != artifact_name_sane:
         print(f"Warning: Sanitized '{artifact_name}' to '{artifact_name_sane}'.", file=sys.stderr)
         artifact_name = artifact_name_sane
-
-    ttl = "30 days"
 
     # TODO: Test for binpath existence
     src_remote_name = "origin"    # TODO: Expose as argument
