@@ -180,18 +180,18 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str) -> str:
     src_tree_root    = exec(["git", "rev-parse", "--show-toplevel"])
     src_status       = exec(["git", "status", "--porcelain=1", "--untracked-files=no"]); src_status = src_status if src_status != "" else "clean"
 
-    branch_name = f"auto/checkpoint/{src_repo}/{src_sha}/{artifact_name}"
+    bin_branch_name = f"auto/checkpoint/{src_repo}/{src_sha}/{artifact_name}"
 
     nca_dir = nca_path(src_tree_root, binpath)
     binpath_rel = nca_rel_dir(src_tree_root, binpath)
 
-    rbgit.checkout_orphan_idempotent(branch_name)
+    rbgit.checkout_orphan_idempotent(bin_branch_name)
 
     print(f"Adding '{binpath}' as '{binpath_rel}' ...", file=sys.stderr)
     changes = rbgit.add(binpath)
     if changes == False:
         print("No changes for the next commit", file=sys.stderr)
-        return None, branch_name
+        return None, bin_branch_name
 
     commit_msg = emit_commit_msg(
         artifact_name = artifact_name,
