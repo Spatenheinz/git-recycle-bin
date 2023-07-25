@@ -24,7 +24,7 @@ def prefix_lines(lines: str, prefix: str) -> str:
     return "\n".join(f"{prefix}{line}" for line in lines.split("\n") if line)
 
 
-def extract_gerrit_change_id(commit_message: str, prefix: str) -> str:
+def extract_gerrit_change_id(commit_message: str) -> str:
     # Find the Change-Id line(s)
     change_id_lines = [line for line in commit_message.split('\n') if line.startswith("Change-Id:")]
 
@@ -32,7 +32,7 @@ def extract_gerrit_change_id(commit_message: str, prefix: str) -> str:
     if change_id_lines:
         last_change_id_line = change_id_lines[-1]
         _, change_id = last_change_id_line.split(maxsplit=1)
-        return f"{prefix}{change_id}"
+        return change_id
 
     # If there is no Change-Id line, return an empty string
     return ""
@@ -132,7 +132,7 @@ def emit_commit_msg(d: dict):
         src-git-relpath: {d['artifact_relpath_src']}
         src-git-commit-title: {d['src_sha_title']}
         src-git-commit-sha: {d['src_sha']}
-        {extract_gerrit_change_id(d['src_sha_msg'], "src-git-commit-changeid: ")}
+        {prefix_lines(prefix="src-git-commit-changeid: ", lines=extract_gerrit_change_id(d['src_sha_msg']))}
         src-git-commit-time-author: {d['src_time_author']}
         src-git-commit-time-commit: {d['src_time_commit']}
         src-git-branch: {d['src_branch'] if d['src_branch'] != "HEAD" else "Detached HEAD"}
