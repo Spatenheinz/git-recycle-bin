@@ -255,7 +255,8 @@ def main():
     parser.add_argument("--name",   required=True,  type=str, default=os.getenv('GITRB_NAME'), help="Name to assign to the artifact. Will be sanitized.")
     parser.add_argument("--path",   required=True,  type=str, default=os.getenv('GITRB_PATH'), help="Path to artifact in src-repo. File or folder.")
     parser.add_argument("--remote", required=False, type=str, default=os.getenv('GITRB_REMOTE'), help="Git remote URL to push artifact to.")
-    parser.add_argument("--push", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH', 'False'), help="Perform push to remote.")
+    parser.add_argument("--push", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH', 'False'), help="Push artifact-commit to remote.")
+    parser.add_argument("--push-tag", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH_TAG', 'False'), help="Push tag to artifact to remote.")
     parser.add_argument("--verbose", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_VERBOSE', 'False'), help="Enable verbose mode.")
     # TODO: Implement verbose mode
     # TODO: Add --clean to delete the .rbgit repo, or like docker's --rm
@@ -273,12 +274,14 @@ def main():
     print(rbgit.cmd("branch", "-vv"))
     if d['bin_sha']:
         print(rbgit.cmd("log", "-1", d['bin_branch_name']))
+        rbgit.set_tag(tag_name=f"{d['src_branch']}{{{d['artifact_relpath_nca']}}}", tag_val=d['bin_sha'])
 
     remote_bin_name = "recyclebin"
     if args.remote:
         rbgit.add_remote_idempotent(name=remote_bin_name, url=args.remote)
     if args.push:
         rbgit.cmd("push", remote_bin_name, d['bin_branch_name'], capture_output=False)  # pushing may take long, so always show stdout and stderr without capture
+    if args.push_tag:
         rbgit.fetch_only_tags(remote_bin_name)
 
 

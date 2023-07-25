@@ -69,3 +69,6 @@ class RbGit:
 
     def fetch_only_tags(self, remote: str):
         self.cmd("fetch", remote, 'refs/tags/*:refs/tags/*')
+
+    def set_tag(self, tag_name: str, tag_val: str):
+        self.cmd("tag", "--force", tag_name, tag_val)
