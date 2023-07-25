@@ -209,13 +209,11 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, ttl: str = "
             d['src_commits_ahead']   = exec(["git", "rev-list", "--count", f"{d['src_branch_upstream']}..{d['src_branch']}"])
             d['src_commits_behind']  = exec(["git", "rev-list", "--count", f"{d['src_branch']}..{d['src_branch_upstream']}"])
 
-
-    d['bin_branch_name'] = f"auto/checkpoint/{d['src_repo']}/{d['src_sha']}/{artifact_name}"
-
     d['nca_dir'] = nca_path(d['src_tree_root'], binpath)                        # Longest shared path between gitroot and artifact. Is either {gitroot, something outside gitroot}
     d['artifact_relpath_nca'] = rel_dir(pto=binpath, pfrom=d['nca_dir'])        # Relative path to artifact from nca_dir. Artifact is always within nca_dir
     d['artifact_relpath_src'] = rel_dir(pto=binpath, pfrom=d['src_tree_root'])  # Relative path to artifact from src-git-root. Artifact might be outside of source git.
 
+    d['bin_branch_name'] = f"auto/artifact/{d['src_repo']}@{d['src_sha']}/{{{d['artifact_relpath_nca']}}}"
 
     rbgit.checkout_orphan_idempotent(d['bin_branch_name'])
 
