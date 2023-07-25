@@ -24,9 +24,9 @@ Meta-data is stored as trailer fields in the commit message, forming a schema, e
 `artifact-schema-version: 1` : Integer. The version of the schema.
 `artifact-name: Aurora-RST-Documentation` : String. Name of the artifact.
 `artifact-mime-type: directory` : String or tuple. MIME type of the artifact.
-`artifact-relpath-src: ../obj/doc/html` : String. Relative path to artifact from source-git's root. Leading `../ ` means artifact resided outside the source-git.
 `artifact-tree-prefix: obj/doc/html` : String. Files in this artifact commit all share this directory-prefix. Either `.` or some directory-prefix. A directory-prefix can make merges of artifact-commits conflict-free.
 `artifact-time-to-live: 30 days` : Life-time of artifact-branch from `src-git-commit-time-commit`. After this, the automatic artifact-branch may be deleted - thus eligible for garbage collection (`git gc`).
+`src-git-relpath: ../obj/doc/html` : String. Relative path to artifact from source-git's root. Leading `../ ` means artifact resided outside the source-git.
 `src-git-commit-title: rf: twister wrapper WIP` : String. Artifact was built from this commit in source git repo.
 `src-git-commit-sha: ed6267ee5b84c894fc8490d93db0525fb2f167eb` : String. Artifact was built from this commit in source git repo.
 `src-git-commit-changeid: Ie3eb7af86c3e578d2c18631f15cf0a12e7d0f80d` : String. Artifact was built from this commit in source git repo. Optional.

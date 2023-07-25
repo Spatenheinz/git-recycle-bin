@@ -127,9 +127,9 @@ def emit_commit_msg(d: dict):
         artifact-schema-version: 1
         artifact-name: {d['artifact_name']}
         artifact-mime-type: {d['artifact_mime']}
-        artifact-relpath-src: {d['artifact_relpath_src']}
         artifact-tree-prefix: {d['artifact_relpath_nca']}
         artifact-time-to-live: {d['ttl']}
+        src-git-relpath: {d['artifact_relpath_src']}
         src-git-commit-title: {d['src_sha_title']}
         src-git-commit-sha: {d['src_sha']}
         {extract_gerrit_change_id(d['src_sha_msg'], "src-git-commit-changeid: ")}
