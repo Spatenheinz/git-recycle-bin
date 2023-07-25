@@ -39,6 +39,26 @@ Meta-data is stored as trailer fields in the commit message, forming a schema, e
 `src-git-commits-behind: ?`: Integer or `?`. How many commits source git repo branch was locally behind of its remote upstream tracking branch.
 `src-git-status: clean` : String or strings. Either `clean` or list of locally {modified, deleted} files in source git repo. Untracked files are ignored.
 
+This scheme captures only what is intrinsically tied to the artifact and the sources it comes from.
+Adding further meta-data should be carefully considered, so as to not compromise the repeatability of the artifact's commit SHA.
+
+
+### Other schema ideas
+It may be tempting to extend the schema above with further convenient meta-data, see below for more ideas.
+However, adding such _convenient_ meta-data means we mix-in ever-changing non-reproducible machine-specific side-effects.
+These could still be useful but do no belong in the artifact's commit message; would fit better as a `git-note` attached to the artifact's commitish or treeish -- this remains as possible future work.
+
+`artifact-outputs`: List of files/artifacts generated. Would give more insight into what's included beyond just the tree prefix.
+`artifact-dependencies`: List of other artifacts this one depends on. Useful for dependency management.
+`build-job`: ID of any associated CI job/build pipeline.
+`build-host`: Name/ID of machine that built the artifact.
+`build-duration`: How long the build took. Performance metric.
+`build-timestamp`: Exact UTC timestamp of when build occurred.
+`artifact-hash`: Hash or checksum of the artifact output. Improves integrity checking.
+`artifact-url`: Direct URL to download the artifact.
+`artifact-notes`: Any other information about the build - logs, warnings, etc.
+
+
 
 
 
