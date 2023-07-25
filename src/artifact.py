@@ -135,10 +135,12 @@ def emit_commit_msg(d: dict):
         {extract_gerrit_change_id(d['src_sha_msg'], "src-git-commit-changeid: ")}
         src-git-commit-time-author: {d['src_time_author']}
         src-git-commit-time-commit: {d['src_time_commit']}
-        src-git-branch: {d['src_branch']}
+        src-git-branch: {d['src_branch'] if d['src_branch'] != "HEAD" else "Detached HEAD"}
         src-git-repo-name: {d['src_repo']}
         src-git-repo-url: {d['src_repo_url']}
-        {prefix_lines(prefix="src-git-status: ", lines=trim_all_lines(d['src_status']))}
+        src-git-commits-ahead: {d['src_commits_ahead'] if d['src_commits_ahead'] != "" else "?"}
+        src-git-commits-behind: {d['src_commits_behind'] if d['src_commits_behind'] != "" else "?"}
+        {prefix_lines(prefix="src-git-status: ", lines=trim_all_lines(d['src_status'] if d['src_status'] != "" else "clean"))}
     """
     return trim_all_lines(commit_msg)
 
@@ -188,11 +190,25 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, ttl: str = "
     # Commiter time is monotonically increasing but sampled locally, so graph could still be non-monotonic if a collaborator has a very wrong clock.
     d['src_time_commit']  = exec(["git", "show", "-s", "--format=%cd", f"--date=format:{date_fmt}", d['src_sha']])
 
-    d['src_branch']       = exec(["git", "rev-parse", "--abbrev-ref", "HEAD"]); d['src_branch'] = d['src_branch'] if d['src_branch'] != "HEAD" else "Detached HEAD"
+    d['src_branch']       = exec(["git", "rev-parse", "--abbrev-ref", "HEAD"]);
     d['src_repo_url']     = exec(["git", "config", "--get", f"remote.{d['src_remote_name']}.url"])
     d['src_repo']         = os.path.basename(d['src_repo_url'])
     d['src_tree_root']    = exec(["git", "rev-parse", "--show-toplevel"])
-    d['src_status']       = exec(["git", "status", "--porcelain=1", "--untracked-files=no"]); d['src_status'] = d['src_status'] if d['src_status'] != "" else "clean"
+    d['src_status']       = exec(["git", "status", "--porcelain=1", "--untracked-files=no"]);
+
+    if d['src_branch'] == "HEAD":
+        d['src_branch_upstream'] = ""
+        d['src_commits_ahead']   = ""
+        d['src_commits_behind']  = ""
+    else:
+        d['src_branch_upstream'] = exec(["git", "for-each-ref", "--format=%(upstream:short)", f"refs/heads/{d['src_branch']}"])
+        if d['src_branch_upstream'] == "":
+            d['src_commits_ahead']  = ""
+            d['src_commits_behind'] = ""
+        else:
+            d['src_commits_ahead']   = exec(["git", "rev-list", "--count", f"{d['src_branch_upstream']}..{d['src_branch']}"])
+            d['src_commits_behind']  = exec(["git", "rev-list", "--count", f"{d['src_branch']}..{d['src_branch_upstream']}"])
+
 
     d['bin_branch_name'] = f"auto/checkpoint/{d['src_repo']}/{d['src_sha']}/{artifact_name}"
 
@@ -210,10 +226,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, ttl: str = "
         d['bin_sha'] = None
         return d
 
-    d['bin_commit_msg'] = emit_commit_msg(
-        d
-        # TODO: Add ahead behind
-    )
+    d['bin_commit_msg'] = emit_commit_msg(d)
 
     # Set {author,committer}-dates: Make our new commit reproducible by copying from the source; do not sample the current time.
     # Sampling the current time would lead to new commit SHA every time, thus not idempotent.

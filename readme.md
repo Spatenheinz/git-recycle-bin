@@ -35,6 +35,8 @@ Meta-data is stored as trailer fields in the commit message, forming a schema, e
 `src-git-branch: feature/wrk_le_audio_7.0` : String. Locally-checked out branch in source git repo or `Detached HEAD`.
 `src-git-repo-name: firmware` : String. Basename of `src-git-repo-url`.
 `src-git-repo-url: ssh://gerrit.ci.demant.com:29418/firmware` : String. URL of remote in source git repo.
+`src-git-commits-ahead: ?`: Integer or `?`. How many commits source git repo branch was locally ahead of its remote upstream tracking branch.
+`src-git-commits-behind: ?`: Integer or `?`. How many commits source git repo branch was locally behind of its remote upstream tracking branch.
 `src-git-status: clean` : String or strings. Either `clean` or list of locally {modified, deleted} files in source git repo. Untracked files are ignored.
 
 
