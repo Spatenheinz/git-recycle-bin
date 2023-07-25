@@ -72,3 +72,15 @@ class RbGit:
 
     def set_tag(self, tag_name: str, tag_val: str):
         self.cmd("tag", "--force", tag_name, tag_val)
+
+    def tree_size(self, ref: str = "HEAD") -> int:
+        """ Accumulated recursively-walked size of tree. Git stores sparsely and compressed which is not accounted for here """
+        lines = self.cmd("ls-tree", "-lr", ref)
+
+        # Parse output:
+        # - Split into lines
+        # - Extract the 4th column (size) from each line
+        # - Convert to int
+        # - Sum the sizes
+        sizes = [int(re.split(r'\s+', line)[3]) for line in lines.splitlines()]
+        return sum(sizes)
