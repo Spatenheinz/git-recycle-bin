@@ -17,6 +17,29 @@ Unlike many artifact management systems out there, the artifacts published here 
 * Setting of current latest tags is done at CI-side. TBD.
 
 
+## Schema
+Artifacts come with meta-data, for {expiry, traceabillity, audit, placement} purposes. \
+Meta-data is stored as trailer fields in the commit message, forming a schema, e.g.:
+
+`artifact-schema-version: 1` : Integer. The version of the schema.
+`artifact-name: Aurora-RST-Documentation` : String. Name of the artifact.
+`artifact-mime-type: directory` : String or tuple. MIME type of the artifact.
+`artifact-relpath-src: ../obj/doc/html` : String. Relative path to artifact from source-git's root. Leading `../ ` means artifact resided outside the source-git.
+`artifact-tree-prefix: obj/doc/html` : String. Files in this artifact commit all share this directory-prefix. Either `.` or some directory-prefix. A directory-prefix can make merges of artifact-commits conflict-free.
+`artifact-time-to-live: 30 days` : Life-time of artifact-branch from `src-git-commit-time-commit`. After this, the automatic artifact-branch may be deleted - thus eligible for garbage collection (`git gc`).
+`src-git-commit-title: rf: twister wrapper WIP` : String. Artifact was built from this commit in source git repo.
+`src-git-commit-sha: ed6267ee5b84c894fc8490d93db0525fb2f167eb` : String. Artifact was built from this commit in source git repo.
+`src-git-commit-changeid: Ie3eb7af86c3e578d2c18631f15cf0a12e7d0f80d` : String. Artifact was built from this commit in source git repo. Optional.
+`src-git-commit-time-author: Wed, 21 Jun 2023 14:13:31 +0200` : Date. Artifact was built from this commit in source git repo.
+`src-git-commit-time-commit: Wed, 21 Jun 2023 15:42:49 +0200` : Date. Artifact was built from this commit in source git repo.
+`src-git-branch: feature/wrk_le_audio_7.0` : String. Locally-checked out branch in source git repo or `Detached HEAD`.
+`src-git-repo-name: firmware` : String. Basename of `src-git-repo-url`.
+`src-git-repo-url: ssh://gerrit.ci.demant.com:29418/firmware` : String. URL of remote in source git repo.
+`src-git-status: clean` : String or strings. Either `clean` or list of locally {modified, deleted} files in source git repo. Untracked files are ignored.
+
+
+
+
 # Usage example 1
 ```
 artifact.py --path ../obj/doc/html --name "Aurora-RST-Documentation" --remote "git@gitlab.ci.demant.com:csfw/documentation/generated/aurora_rst_html_mpeddemo.git" --push

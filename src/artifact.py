@@ -126,9 +126,9 @@ def emit_commit_msg(d: dict):
 
         artifact-schema-version: 1
         artifact-name: {d['artifact_name']}
-        artifact-mime: {d['artifact_mime']}
-        artifact-relpath-nca: {d['artifact_relpath_nca']}
+        artifact-mime-type: {d['artifact_mime']}
         artifact-relpath-src: {d['artifact_relpath_src']}
+        artifact-tree-prefix: {d['artifact_relpath_nca']}
         artifact-time-to-live: {d['ttl']}
         src-git-commit-title: {d['src_sha_title']}
         src-git-commit-sha: {d['src_sha']}
@@ -136,7 +136,7 @@ def emit_commit_msg(d: dict):
         src-git-commit-time-author: {d['src_time_author']}
         src-git-commit-time-commit: {d['src_time_commit']}
         src-git-branch: {d['src_branch']}
-        src-git-repo: {d['src_repo']}
+        src-git-repo-name: {d['src_repo']}
         src-git-repo-url: {d['src_repo_url']}
         {prefix_lines(prefix="src-git-status: ", lines=trim_all_lines(d['src_status']))}
     """
@@ -213,7 +213,6 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, ttl: str = "
     d['bin_commit_msg'] = emit_commit_msg(
         d
         # TODO: Add ahead behind
-        # TODO: Add relative path from git root
     )
 
     # Set {author,committer}-dates: Make our new commit reproducible by copying from the source; do not sample the current time.
