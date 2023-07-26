@@ -84,3 +84,13 @@ class RbGit:
         # - Sum the sizes
         sizes = [int(re.split(r'\s+', line)[3]) for line in lines.splitlines()]
         return sum(sizes)
+
+    def fetch_current_tag_value(self, remote: str, tag_name: str):
+        lines = self.cmd("ls-remote", "--tags", remote, tag_name)
+        for line in lines.splitlines():
+            cols = line.split()
+            sha = cols[0]
+            tag = cols[1].removeprefix('refs/tags/')
+            if tag == tag_name:
+                return sha
+        return None
