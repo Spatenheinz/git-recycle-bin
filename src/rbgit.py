@@ -94,3 +94,8 @@ class RbGit:
             if tag == tag_name:
                 return sha
         return None
+
+    def fetch_cat_pretty(self, remote: str, ref: str) -> str:
+        self.cmd("fetch", remote, ref)
+        content = self.cmd("cat-file", "-p", "FETCH_HEAD")
+        return content
