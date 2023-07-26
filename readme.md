@@ -40,12 +40,12 @@ Meta-data is stored as trailer fields in the commit message, forming a schema, e
 `src-git-status: clean` : String or strings. Either `clean` or list of locally {modified, deleted} files in source git repo. Untracked files are ignored.
 
 This scheme captures only what is intrinsically tied to the artifact and the sources it comes from.
-Adding further meta-data should be carefully considered, so as to not compromise the repeatability of the artifact's commit SHA.
+Adding further meta-data should be carefully considered, so as to not compromise the repeatability/_stabillity_ of the artifact's commit SHA.
 
 
 ### Other schema ideas
 It may be tempting to extend the schema above with further convenient meta-data, see below for more ideas.
-However, adding such _convenient_ meta-data means we mix-in ever-changing non-reproducible machine-specific side-effects.
+However, adding such _convenient_ meta-data means we mix-in ever-changing non-reproducible machine-specific side-effects - making the SHA _unstable_.
 These could still be useful but do no belong in the artifact's commit message; would fit better as a `git-note` attached to the artifact's commitish or treeish -- this remains as possible future work.
 
 `artifact-outputs`: List of files/artifacts generated. Would give more insight into what's included beyond just the tree prefix.
