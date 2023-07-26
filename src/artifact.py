@@ -222,6 +222,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, ttl: str = "
     d['artifact_relpath_nca'] = rel_dir(pto=binpath, pfrom=d['nca_dir'])        # Relative path to artifact from nca_dir. Artifact is always within nca_dir
     d['artifact_relpath_src'] = rel_dir(pto=binpath, pfrom=d['src_tree_root'])  # Relative path to artifact from src-git-root. Artifact might be outside of source git.
 
+    # TODO: Replace "auto" with "fixed" and "latest"
     d['bin_branch_name'] = f"auto/artifact/{d['src_repo']}@{d['src_sha']}/{{{d['artifact_relpath_nca']}}}"
     d['bin_tag_name']    = f"auto/artifact/{d['src_repo']}@{d['src_branch']}/{{{d['artifact_relpath_nca']}}}" if d['src_branch'] != "HEAD" else None
 
@@ -322,13 +323,23 @@ def main() -> int:
         remote_bin_sha_commit = rbgit.fetch_current_tag_value(remote_bin_name, d['bin_tag_name'])
         if remote_bin_sha_commit:
             print(f"Bin-remote already has a tag named {d['bin_tag_name']} pointing to {remote_bin_sha_commit[:8]}.", file=sys.stderr)
-            print(f"We'll check if our artifact is newer than {remote_bin_sha_commit[:8]}...", file=sys.stderr)
             remote_meta = rbgit.fetch_cat_pretty(remote_bin_name, f"refs/artifact/meta-for-commit/{remote_bin_sha_commit}")
-            print(remote_meta)
-            # TODO Arbitrate
+
+            commit_time_theirs = parse_commit_msg(remote_meta)['src-git-commit-time-commit']
+            commit_time_ours = d['src_time_commit']
+            commit_time_theirs_u = date_formatted2unix(commit_time_theirs, date_fmt)
+            commit_time_ours_u = date_formatted2unix(commit_time_ours, date_fmt)
+            print(f"Our artifact {d['bin_sha_commit'][:8]} has src committer-time:   {commit_time_ours} ({commit_time_theirs_u})", file=sys.stderr)
+            print(f"Their artifact {remote_bin_sha_commit[:8]} has src committer-time: {commit_time_theirs} ({commit_time_ours_u})", file=sys.stderr)
+
+            if commit_time_ours_u > commit_time_theirs_u:
+                print(f"Our artifact is newer than theirs. Updating...", file=sys.stderr)
+                rbgit.cmd("push", "--force", remote_bin_name, d['bin_tag_name'])  # Push with force is necessary to update existing tag
+            else:
+                print(f"Our artifact is not newer than theirs. Leaving remote tag as-is.", file=sys.stderr)
         else:
             print(f"Bin-remote does not have a tag named {d['bin_tag_name']} -- we'll publish it.", file=sys.stderr)
-            # TODO push tag
+            rbgit.cmd("push", remote_bin_name, d['bin_tag_name'])  # Create new tag; push with force is not necessary
 
     return 0
 
