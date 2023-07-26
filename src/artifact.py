@@ -280,8 +280,11 @@ def main() -> int:
     parser.add_argument("--remote", required=False, type=str, default=os.getenv('GITRB_REMOTE'), help="Git remote URL to push artifact to.")
     parser.add_argument("--push", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH', 'False'), help="Push artifact-commit to remote.")
     parser.add_argument("--push-tag", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH_TAG', 'False'), help="Push tag to artifact to remote.")
+    parser.add_argument("--force-branch", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE', 'False'), help="Force push of branch.")
+    parser.add_argument("--force-tag", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE', 'False'), help="Force push of tag.")
     parser.add_argument("--verbose", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_VERBOSE', 'False'), help="Enable verbose mode.")
     # TODO: Implement verbose mode
+    # TODO: Unify --push and --force, as --push={yes, no, force}
     # TODO: Add --clean to delete the .rbgit repo, or like docker's --rm
     # TODO: Add --submodule to add a src/ submodule back to the src-repo.
     # TODO: Create other script for the bin-side: CI expiry / branch-deletion.
@@ -292,6 +295,9 @@ def main() -> int:
     # Sanity-check
     if args.push_tag and not args.push:
         print("Error: `--push-tag` requires `--push`")
+        return 1
+    if args.force_tag and not args.force_branch:
+        print("Error: `--force-tag` requires `--force-branch`")
         return 1
 
     src_tree_root = exec(["git", "rev-parse", "--show-toplevel"])
@@ -306,15 +312,25 @@ def main() -> int:
     print(rbgit.cmd("log", "-1", d['bin_branch_name']))
 
     remote_bin_name = "recyclebin"
+
     if args.remote:
         rbgit.add_remote_idempotent(name=remote_bin_name, url=args.remote)
+
     if args.push:
         # Push branch first, then meta-data (we don't want meta-data to be pushed if branch push fails).
         # Pushing may take long, so always show stdout and stderr without capture.
         print(f"Pushing to remote artifact-repo: Artifact data on branch {d['bin_branch_name']}", file=sys.stderr)
-        rbgit.cmd("push", "--force", remote_bin_name, d['bin_branch_name'], capture_output=False)  # Branch might exist already upstream. Policy TODO
+        if args.force_branch:
+            rbgit.cmd("push", "--force", remote_bin_name, d['bin_branch_name'], capture_output=False)  # Branch might exist already upstream. Policy TODO
+        else:
+            rbgit.cmd("push",            remote_bin_name, d['bin_branch_name'], capture_output=False)  # Branch might exist already upstream. Policy TODO
+
         print(f"Pushing to remote artifact-repo: Artifact meta-data {d['bin_ref_only_metadata']}", file=sys.stderr)
-        rbgit.cmd("push", "--force", remote_bin_name, d['bin_ref_only_metadata'], capture_output=False)
+        if args.force_branch:
+            rbgit.cmd("push", "--force", remote_bin_name, d['bin_ref_only_metadata'], capture_output=False)
+        else:
+            rbgit.cmd("push",            remote_bin_name, d['bin_ref_only_metadata'], capture_output=False)
+
     if args.push_tag:
         if not d['bin_tag_name']:
             print("Error: You are in Detached HEAD, so you can't push a tag to bin-remote with name of your source branch.", file=sys.stderr)
@@ -336,7 +352,12 @@ def main() -> int:
                 print(f"Our artifact is newer than theirs. Updating...", file=sys.stderr)
                 rbgit.cmd("push", "--force", remote_bin_name, d['bin_tag_name'])  # Push with force is necessary to update existing tag
             else:
-                print(f"Our artifact is not newer than theirs. Leaving remote tag as-is.", file=sys.stderr)
+                if not args.force_tag:
+                    print(f"Our artifact is not newer than theirs. Leaving remote tag as-is.", file=sys.stderr)
+                else:
+                    print(f"Our artifact is not newer than theirs. Forcing update to remote tag.", file=sys.stderr)
+                    rbgit.cmd("push", "--force", remote_bin_name, d['bin_tag_name'])  # Push with force is necessary to update existing tag
+
         else:
             print(f"Bin-remote does not have a tag named {d['bin_tag_name']} -- we'll publish it.", file=sys.stderr)
             rbgit.cmd("push", remote_bin_name, d['bin_tag_name'])  # Create new tag; push with force is not necessary
