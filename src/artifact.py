@@ -215,25 +215,37 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, ttl: str = "
 
     d['bin_branch_name'] = f"auto/artifact/{d['src_repo']}@{d['src_sha']}/{{{d['artifact_relpath_nca']}}}"
 
+    d['bin_commit_msg'] = emit_commit_msg(d)
+
     rbgit.checkout_orphan_idempotent(d['bin_branch_name'])
 
     print(f"Adding '{binpath}' as '{d['artifact_relpath_nca']}' ...", file=sys.stderr)
     changes = rbgit.add(binpath)
-    if changes == False:
-        print("No changes for the next commit", file=sys.stderr)
-        d['bin_sha_commit'] = None
-        return d
+    if changes == True:
+        # Set {author,committer}-dates: Make our new commit reproducible by copying from the source; do not sample the current time.
+        # Sampling the current time would lead to new commit SHA every time, thus not idempotent.
+        os.environ['GIT_AUTHOR_DATE'] = d['src_time_author']
+        os.environ['GIT_COMMITTER_DATE'] = d['src_time_commit']
+        rbgit.cmd("commit", "--file", "-", "--quiet", "--no-status", "--untracked-files=no", input=d['bin_commit_msg'])
+        d['bin_sha_commit'] = rbgit.cmd("rev-parse", "HEAD").strip()
+    else:
+        d['bin_sha_commit'] = rbgit.cmd("rev-parse", "HEAD").strip()  # We already checked-out idempotently
+        print(f"No changes for the next commit. Already at {d['bin_sha_commit']}", file=sys.stderr)
 
-    d['bin_commit_msg'] = emit_commit_msg(d)
+    # Fetching a commit implies fetching its whole tree too, which may be big!
+    # We want light-weight access to the meta-data stored in the commit's message, so we
+    # copy meta-data to a new object which can be fetched standalone - without downloading the whole tree.
+    # NOTE: This meta-data could be augmented with convenient/unstable information - this would not compromise the commit-SHA's stability.
+    d['bin_sha_only_metadata'] = rbgit.cmd("hash-object", "--stdin", "-w", input=d['bin_commit_msg']).strip()
+    # Create new ref for the artifact-commit, pointing to [Meta data]-only.
+    d['bin_ref_only_metadata'] = f"refs/artifact/meta-for-commit/{d['bin_sha_commit']}"
+    rbgit.cmd("update-ref", d['bin_ref_only_metadata'], d['bin_sha_only_metadata'])
 
-    # Set {author,committer}-dates: Make our new commit reproducible by copying from the source; do not sample the current time.
-    # Sampling the current time would lead to new commit SHA every time, thus not idempotent.
-    os.environ['GIT_AUTHOR_DATE'] = d['src_time_author']
-    os.environ['GIT_COMMITTER_DATE'] = d['src_time_commit']
-    rbgit.cmd("commit", "--file", "-", "--quiet", "--no-status", "--untracked-files=no", input=d['bin_commit_msg'])
+    print(f"Artifact branch: {d['bin_branch_name']}", file=sys.stderr)
+    print(f"Artifact commit: {d['bin_sha_commit']}", file=sys.stderr)
+    print(f"Artifact [meta data]-only ref: {d['bin_ref_only_metadata']}", file=sys.stderr)
+    print(f"Artifact [meta data]-only obj: {d['bin_sha_only_metadata']}", file=sys.stderr)
 
-    d['bin_sha_commit'] = rbgit.cmd("rev-parse", "HEAD").strip()
-    print(f"Committed {d['bin_sha_commit']}", file=sys.stderr)
     return d
 
 
