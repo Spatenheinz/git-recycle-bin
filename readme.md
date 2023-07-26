@@ -14,7 +14,6 @@ Unlike many artifact management systems out there, the artifacts published here 
 # Usage
 * Locally or CI-side, this tool creates and pushes artifacts, see `--help` and examples below.
 * Garbage collection of expired artifacts is done at CI-side. TBD.
-* Setting of current latest tags is done at CI-side. TBD.
 
 
 ## Schema
@@ -64,12 +63,19 @@ These could still be useful but do no belong in the artifact's commit message; w
 
 # Usage example 1
 ```
-artifact.py --path ../obj/doc/html --name "Aurora-RST-Documentation" --remote "git@gitlab.ci.demant.com:csfw/documentation/generated/aurora_rst_html_mpeddemo.git" --push
+artifact.py \
+    --path ../obj/doc/html \
+    --name "Aurora-RST-Documentation" \
+    --remote git@gitlab.ci.demant.com:csfw/documentation/generated/aurora_rst_html_mpeddemo.git \
+    --push \
+    --push-tag
 ```
 
 This will:
 
-  1. Create a new git repo locally, to ensure non-interference with source repo.
-  2. Create a new binary artifact git commit for the HTML folder and assign it a name and expiry.
-  3. Push the artifact commit to the remote.
-
+  1. Create a new empty git repo locally -- to ensure non-interference with source repo.
+  2. Create a new binary artifact git commit for the HTML folder and assign it a {name, expiry} and record meta-data.
+  3. Push the artifact to the remote, as an orphan branch named `auto/artifact/firmware@ed6267ee5b84c894fc8490d93db0525fb2f167eb/{obj/doc/html}`
+     (if the branch already exists, we lost the push-race and leave it alone).
+  4. Push {a new, an update of} tag `auto/artifact/firmware@feature/wrk_le_audio_7.0/{obj/doc/html}`
+     (if the tag already exists, it will be updated if our committer time is more recent).
