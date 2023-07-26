@@ -146,11 +146,20 @@ def emit_commit_msg(d: dict):
 
 
 def parse_commit_msg(commit_msg):
-    lines = commit_msg.strip().split('\n')
-    # Create a dictionary by splitting each line at the colon and stripping the results
-    # NOTE: This does not handle multi-line git trailers correctly, e.g. src-git-status
-    commit_dict = {key.strip(): value.strip() for key, value in (line.split(':', 1) for line in lines)}
-    return commit_dict
+    # Regex breakdown:
+    #   ^([\w-]+) matches the key made up of word chars and dashes from line-start, captured in group 1
+    #   :         matches the colon delimiter
+    #   (.*)      matches the rest of the line as the value, captured in group 2
+    pattern = r'^([\w-]+):(.*)'
+
+    ## NOTE: This does not handle multi-line git trailers correctly, e.g. src-git-status
+    ret_dict = {}
+    for line in commit_msg.strip().splitlines():
+        match = re.match(pattern, line)
+        if match:
+            key, val = match.group(1), match.group(2)
+            ret_dict[key.strip()] = val.strip()
+    return ret_dict
 
 
 
