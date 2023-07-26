@@ -221,7 +221,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, ttl: str = "
     changes = rbgit.add(binpath)
     if changes == False:
         print("No changes for the next commit", file=sys.stderr)
-        d['bin_sha'] = None
+        d['bin_sha_commit'] = None
         return d
 
     d['bin_commit_msg'] = emit_commit_msg(d)
@@ -232,8 +232,8 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, ttl: str = "
     os.environ['GIT_COMMITTER_DATE'] = d['src_time_commit']
     rbgit.cmd("commit", "--file", "-", "--quiet", "--no-status", "--untracked-files=no", input=d['bin_commit_msg'])
 
-    d['bin_sha'] = rbgit.cmd("rev-parse", "HEAD").strip()
-    print(f"Committed {d['bin_sha']}", file=sys.stderr)
+    d['bin_sha_commit'] = rbgit.cmd("rev-parse", "HEAD").strip()
+    print(f"Committed {d['bin_sha_commit']}", file=sys.stderr)
     return d
 
 
@@ -272,7 +272,7 @@ def main():
 
     d = create_artifact_commit(rbgit, args.name, args.path)
     print(rbgit.cmd("branch", "-vv"))
-    if d['bin_sha']:
+    if d['bin_sha_commit']:
         print(rbgit.cmd("log", "-1", d['bin_branch_name']))
         rbgit.set_tag(tag_name=f"{d['src_branch']}{{{d['artifact_relpath_nca']}}}", tag_val=d['bin_sha'])
 
