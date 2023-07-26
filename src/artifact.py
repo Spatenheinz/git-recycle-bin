@@ -214,6 +214,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, ttl: str = "
     d['artifact_relpath_src'] = rel_dir(pto=binpath, pfrom=d['src_tree_root'])  # Relative path to artifact from src-git-root. Artifact might be outside of source git.
 
     d['bin_branch_name'] = f"auto/artifact/{d['src_repo']}@{d['src_sha']}/{{{d['artifact_relpath_nca']}}}"
+    d['bin_tag_name']    = f"auto/artifact/{d['src_repo']}@{d['src_branch']}/{{{d['artifact_relpath_nca']}}}" if d['src_branch'] != "HEAD" else None
 
     d['bin_commit_msg'] = emit_commit_msg(d)
 
@@ -287,19 +288,38 @@ def main() -> int:
     nca_dir = nca_path(src_tree_root, args.path)
     rbgit = RbGit(rbgit_dir=f"{nca_dir}/.rbgit", rbgit_work_tree=nca_dir)
 
+    print(f"Making local commit of artifact {args.path} in artifact-repo at {rbgit.rbgit_dir}", file=sys.stderr)
     d = create_artifact_commit(rbgit, args.name, args.path)
+    if d['bin_tag_name']:
+        rbgit.set_tag(tag_name=d['bin_tag_name'], tag_val=d['bin_sha_commit'])
     print(rbgit.cmd("branch", "-vv"))
-    if d['bin_sha_commit']:
-        print(rbgit.cmd("log", "-1", d['bin_branch_name']))
-        rbgit.set_tag(tag_name=f"{d['src_branch']}{{{d['artifact_relpath_nca']}}}", tag_val=d['bin_sha'])
+    print(rbgit.cmd("log", "-1", d['bin_branch_name']))
 
     remote_bin_name = "recyclebin"
     if args.remote:
         rbgit.add_remote_idempotent(name=remote_bin_name, url=args.remote)
     if args.push:
-        rbgit.cmd("push", remote_bin_name, d['bin_branch_name'], capture_output=False)  # pushing may take long, so always show stdout and stderr without capture
+        # Push branch first, then meta-data (we don't want meta-data to be pushed if branch push fails).
+        # Pushing may take long, so always show stdout and stderr without capture.
+        print(f"Pushing to remote artifact-repo: Artifact data on branch {d['bin_branch_name']}", file=sys.stderr)
+        rbgit.cmd("push", "--force", remote_bin_name, d['bin_branch_name'], capture_output=False)  # Branch might exist already upstream. Policy TODO
+        print(f"Pushing to remote artifact-repo: Artifact meta-data {d['bin_ref_only_metadata']}", file=sys.stderr)
+        rbgit.cmd("push", "--force", remote_bin_name, d['bin_ref_only_metadata'], capture_output=False)
     if args.push_tag:
-        rbgit.fetch_only_tags(remote_bin_name)
+        if not d['bin_tag_name']:
+            print("Error: You are in Detached HEAD, so you can't push a tag to bin-remote with name of your source branch.", file=sys.stderr)
+            return 1
+
+        remote_bin_sha_commit = rbgit.fetch_current_tag_value(remote_bin_name, d['bin_tag_name'])
+        if remote_bin_sha_commit:
+            print(f"Bin-remote already has a tag named {d['bin_tag_name']} pointing to {remote_bin_sha_commit[:8]}.", file=sys.stderr)
+            print(f"We'll check if our artifact is newer than {remote_bin_sha_commit[:8]}...", file=sys.stderr)
+            remote_meta = rbgit.fetch_cat_pretty(remote_bin_name, f"refs/artifact/meta-for-commit/{remote_bin_sha_commit}")
+            print(remote_meta)
+            # TODO Arbitrate
+        else:
+            print(f"Bin-remote does not have a tag named {d['bin_tag_name']} -- we'll publish it.", file=sys.stderr)
+            # TODO push tag
 
     return 0
 
