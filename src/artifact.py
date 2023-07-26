@@ -262,7 +262,7 @@ def str2bool(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description="Create and push artifacts - which have traceability and expiry")
     parser.add_argument("--name",   required=True,  type=str, default=os.getenv('GITRB_NAME'), help="Name to assign to the artifact. Will be sanitized.")
     parser.add_argument("--path",   required=True,  type=str, default=os.getenv('GITRB_PATH'), help="Path to artifact in src-repo. File or folder.")
@@ -277,6 +277,11 @@ def main():
     # TODO: Create other script for the bin-side: Setting latest tag
 
     args = parser.parse_args()
+
+    # Sanity-check
+    if args.push_tag and not args.push:
+        print("Error: `--push-tag` requires `--push`")
+        return 1
 
     src_tree_root = exec(["git", "rev-parse", "--show-toplevel"])
     nca_dir = nca_path(src_tree_root, args.path)
@@ -296,6 +301,8 @@ def main():
     if args.push_tag:
         rbgit.fetch_only_tags(remote_bin_name)
 
+    return 0
 
 if __name__ == "__main__":
-    main()
+    ret = main()
+    sys.exit(ret)
