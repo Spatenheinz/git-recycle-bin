@@ -9,9 +9,12 @@ from itertools import takewhile
 from datetime import datetime
 
 from rbgit import RbGit
+from printer import Printer
 
 # Don't change the date format! This could break parsing
 date_fmt = "%a, %d %b %Y %H:%M:%S %z"
+
+printer = Printer(verbosity=2, colorize=True)
 
 
 def trim_all_lines(input_string):
@@ -79,7 +82,7 @@ def sanitize_branch_name(name: str) -> str:
 
 
 def exec(command):
-    print("Run:", command)
+    printer.debug("Run:", command, file=sys.stderr)
     return subprocess.check_output(command, text=True).strip()
 
 
@@ -170,7 +173,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, ttl: str = "
 
     artifact_name_sane = sanitize_branch_name(artifact_name)
     if artifact_name != artifact_name_sane:
-        print(f"Warning: Sanitized '{artifact_name}' to '{artifact_name_sane}'.", file=sys.stderr)
+        printer.always(f"Warning: Sanitized '{artifact_name}' to '{artifact_name_sane}'.", file=sys.stderr)
         artifact_name = artifact_name_sane
 
     d = {}
@@ -230,7 +233,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, ttl: str = "
 
     rbgit.checkout_orphan_idempotent(d['bin_branch_name'])
 
-    print(f"Adding '{binpath}' as '{d['artifact_relpath_nca']}' ...", file=sys.stderr)
+    printer.high_level(f"Adding '{binpath}' as '{d['artifact_relpath_nca']}' ...", file=sys.stderr)
     changes = rbgit.add(binpath)
     if changes == True:
         # Set {author,committer}-dates: Make our new commit reproducible by copying from the source; do not sample the current time.
@@ -241,7 +244,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, ttl: str = "
         d['bin_sha_commit'] = rbgit.cmd("rev-parse", "HEAD").strip()
     else:
         d['bin_sha_commit'] = rbgit.cmd("rev-parse", "HEAD").strip()  # We already checked-out idempotently
-        print(f"No changes for the next commit. Already at {d['bin_sha_commit']}", file=sys.stderr)
+        printer.high_level(f"No changes for the next commit. Already at {d['bin_sha_commit']}", file=sys.stderr)
 
     # Fetching a commit implies fetching its whole tree too, which may be big!
     # We want light-weight access to the meta-data stored in the commit's message, so we
@@ -252,10 +255,10 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, ttl: str = "
     d['bin_ref_only_metadata'] = f"refs/artifact/meta-for-commit/{d['bin_sha_commit']}"
     rbgit.cmd("update-ref", d['bin_ref_only_metadata'], d['bin_sha_only_metadata'])
 
-    print(f"Artifact branch: {d['bin_branch_name']}", file=sys.stderr)
-    print(f"Artifact commit: {d['bin_sha_commit']}", file=sys.stderr)
-    print(f"Artifact [meta data]-only ref: {d['bin_ref_only_metadata']}", file=sys.stderr)
-    print(f"Artifact [meta data]-only obj: {d['bin_sha_only_metadata']}", file=sys.stderr)
+    printer.high_level(f"Artifact branch: {d['bin_branch_name']}", file=sys.stderr)
+    printer.high_level(f"Artifact commit: {d['bin_sha_commit']}", file=sys.stderr)
+    printer.high_level(f"Artifact [meta data]-only ref: {d['bin_ref_only_metadata']}", file=sys.stderr)
+    printer.high_level(f"Artifact [meta data]-only obj: {d['bin_sha_only_metadata']}", file=sys.stderr)
 
     return d
 
@@ -275,15 +278,18 @@ def str2bool(v):
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Create and push artifacts - which have traceability and expiry")
-    parser.add_argument("--name",   required=True,  type=str, default=os.getenv('GITRB_NAME'), help="Name to assign to the artifact. Will be sanitized.")
-    parser.add_argument("--path",   required=True,  type=str, default=os.getenv('GITRB_PATH'), help="Path to artifact in src-repo. File or folder.")
+    parser.add_argument("--name", required=True, type=str, default=os.getenv('GITRB_NAME'), help="Name to assign to the artifact. Will be sanitized.")
+    parser.add_argument("--path", required=True, type=str, default=os.getenv('GITRB_PATH'), help="Path to artifact in src-repo. File or folder.")
     parser.add_argument("--remote", required=False, type=str, default=os.getenv('GITRB_REMOTE'), help="Git remote URL to push artifact to.")
     parser.add_argument("--push", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH', 'False'), help="Push artifact-commit to remote.")
     parser.add_argument("--push-tag", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH_TAG', 'False'), help="Push tag to artifact to remote.")
-    parser.add_argument("--force-branch", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE', 'False'), help="Force push of branch.")
-    parser.add_argument("--force-tag", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE', 'False'), help="Force push of tag.")
-    parser.add_argument("--verbose", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_VERBOSE', 'False'), help="Enable verbose mode.")
-    # TODO: Implement verbose mode
+    parser.add_argument("--force-branch", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE_BRANCH', 'False'), help="Force push of branch.")
+    parser.add_argument("--force-tag", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE_TAG', 'False'), help="Force push of tag.")
+
+    parser.add_argument('-v', '--verbose', action='count', dest='verbosity', default=1, help="Increase output verbosity. Can be repeated")
+    parser.add_argument('-q', '--quiet', action='store_const', dest='verbosity', const=0, help="Suppress output")
+    parser.add_argument("--color", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_COLOR', 'True'), help="Colorized output")
+
     # TODO: Unify --push and --force, as --push={yes, no, force}
     # TODO: Add --clean to delete the .rbgit repo, or like docker's --rm
     # TODO: Add --submodule to add a src/ submodule back to the src-repo.
@@ -291,25 +297,27 @@ def main() -> int:
     # TODO: Create other script for the bin-side: Setting latest tag
 
     args = parser.parse_args()
+    printer.verbosity = args.verbosity
+    printer.colorize = args.color
 
     # Sanity-check
     if args.push_tag and not args.push:
-        print("Error: `--push-tag` requires `--push`")
+        printer.error("Error: `--push-tag` requires `--push`")
         return 1
     if args.force_tag and not args.force_branch:
-        print("Error: `--force-tag` requires `--force-branch`")
+        printer.error("Error: `--force-tag` requires `--force-branch`")
         return 1
 
     src_tree_root = exec(["git", "rev-parse", "--show-toplevel"])
     nca_dir = nca_path(src_tree_root, args.path)
-    rbgit = RbGit(rbgit_dir=f"{nca_dir}/.rbgit", rbgit_work_tree=nca_dir)
+    rbgit = RbGit(printer, rbgit_dir=f"{nca_dir}/.rbgit", rbgit_work_tree=nca_dir)
 
-    print(f"Making local commit of artifact {args.path} in artifact-repo at {rbgit.rbgit_dir}", file=sys.stderr)
+    printer.high_level(f"Making local commit of artifact {args.path} in artifact-repo at {rbgit.rbgit_dir}", file=sys.stderr)
     d = create_artifact_commit(rbgit, args.name, args.path)
     if d['bin_tag_name']:
         rbgit.set_tag(tag_name=d['bin_tag_name'], tag_val=d['bin_sha_commit'])
-    print(rbgit.cmd("branch", "-vv"))
-    print(rbgit.cmd("log", "-1", d['bin_branch_name']))
+    printer.detail(rbgit.cmd("branch", "-vv"))
+    printer.detail(rbgit.cmd("log", "-1", d['bin_branch_name']))
 
     remote_bin_name = "recyclebin"
 
@@ -319,13 +327,13 @@ def main() -> int:
     if args.push:
         # Push branch first, then meta-data (we don't want meta-data to be pushed if branch push fails).
         # Pushing may take long, so always show stdout and stderr without capture.
-        print(f"Pushing to remote artifact-repo: Artifact data on branch {d['bin_branch_name']}", file=sys.stderr)
+        printer.high_level(f"Pushing to remote artifact-repo: Artifact data on branch {d['bin_branch_name']}", file=sys.stderr)
         if args.force_branch:
             rbgit.cmd("push", "--force", remote_bin_name, d['bin_branch_name'], capture_output=False)  # Branch might exist already upstream. Policy TODO
         else:
             rbgit.cmd("push",            remote_bin_name, d['bin_branch_name'], capture_output=False)  # Branch might exist already upstream. Policy TODO
 
-        print(f"Pushing to remote artifact-repo: Artifact meta-data {d['bin_ref_only_metadata']}", file=sys.stderr)
+        printer.high_level(f"Pushing to remote artifact-repo: Artifact meta-data {d['bin_ref_only_metadata']}", file=sys.stderr)
         if args.force_branch:
             rbgit.cmd("push", "--force", remote_bin_name, d['bin_ref_only_metadata'], capture_output=False)
         else:
@@ -333,33 +341,33 @@ def main() -> int:
 
     if args.push_tag:
         if not d['bin_tag_name']:
-            print("Error: You are in Detached HEAD, so you can't push a tag to bin-remote with name of your source branch.", file=sys.stderr)
+            printer.error("Error: You are in Detached HEAD, so you can't push a tag to bin-remote with name of your source branch.", file=sys.stderr)
             return 1
 
         remote_bin_sha_commit = rbgit.fetch_current_tag_value(remote_bin_name, d['bin_tag_name'])
         if remote_bin_sha_commit:
-            print(f"Bin-remote already has a tag named {d['bin_tag_name']} pointing to {remote_bin_sha_commit[:8]}.", file=sys.stderr)
+            printer.high_level(f"Bin-remote already has a tag named {d['bin_tag_name']} pointing to {remote_bin_sha_commit[:8]}.", file=sys.stderr)
             remote_meta = rbgit.fetch_cat_pretty(remote_bin_name, f"refs/artifact/meta-for-commit/{remote_bin_sha_commit}")
 
             commit_time_theirs = parse_commit_msg(remote_meta)['src-git-commit-time-commit']
             commit_time_ours = d['src_time_commit']
             commit_time_theirs_u = date_formatted2unix(commit_time_theirs, date_fmt)
             commit_time_ours_u = date_formatted2unix(commit_time_ours, date_fmt)
-            print(f"Our artifact {d['bin_sha_commit'][:8]} has src committer-time:   {commit_time_ours} ({commit_time_theirs_u})", file=sys.stderr)
-            print(f"Their artifact {remote_bin_sha_commit[:8]} has src committer-time: {commit_time_theirs} ({commit_time_ours_u})", file=sys.stderr)
+            printer.high_level(f"Our artifact {d['bin_sha_commit'][:8]} has src committer-time:   {commit_time_ours} ({commit_time_theirs_u})", file=sys.stderr)
+            printer.high_level(f"Their artifact {remote_bin_sha_commit[:8]} has src committer-time: {commit_time_theirs} ({commit_time_ours_u})", file=sys.stderr)
 
             if commit_time_ours_u > commit_time_theirs_u:
-                print(f"Our artifact is newer than theirs. Updating...", file=sys.stderr)
+                printer.high_level(f"Our artifact is newer than theirs. Updating...", file=sys.stderr)
                 rbgit.cmd("push", "--force", remote_bin_name, d['bin_tag_name'])  # Push with force is necessary to update existing tag
             else:
                 if not args.force_tag:
-                    print(f"Our artifact is not newer than theirs. Leaving remote tag as-is.", file=sys.stderr)
+                    printer.high_level(f"Our artifact is not newer than theirs. Leaving remote tag as-is.", file=sys.stderr)
                 else:
-                    print(f"Our artifact is not newer than theirs. Forcing update to remote tag.", file=sys.stderr)
+                    printer.high_level(f"Our artifact is not newer than theirs. Forcing update to remote tag.", file=sys.stderr)
                     rbgit.cmd("push", "--force", remote_bin_name, d['bin_tag_name'])  # Push with force is necessary to update existing tag
 
         else:
-            print(f"Bin-remote does not have a tag named {d['bin_tag_name']} -- we'll publish it.", file=sys.stderr)
+            printer.high_level(f"Bin-remote does not have a tag named {d['bin_tag_name']} -- we'll publish it.", file=sys.stderr)
             rbgit.cmd("push", remote_bin_name, d['bin_tag_name'])  # Create new tag; push with force is not necessary
 
     return 0

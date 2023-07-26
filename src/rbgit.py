@@ -1,8 +1,10 @@
 import os
+import sys
 import subprocess
 
 class RbGit:
-    def __init__(self, rbgit_dir=None, rbgit_work_tree=None):
+    def __init__(self, printer, rbgit_dir=None, rbgit_work_tree=None):
+        self.printer = printer
         self.rbgit_dir = rbgit_dir if rbgit_dir else os.environ["RBGIT_DIR"]
         self.rbgit_work_tree = rbgit_work_tree if rbgit_work_tree else os.environ["RBGIT_WORK_TREE"]
         self.init_idempotent()
@@ -14,7 +16,7 @@ class RbGit:
         envcopy["GIT_WORK_TREE"] = self.rbgit_work_tree
 
         # execute the git command with the modified environment
-        print("Run:", ["rbgit", *args])
+        self.printer.debug("Run:", ["rbgit", *args], file=sys.stderr)
         result = subprocess.run(["git", *args], input=input, env=envcopy, capture_output=capture_output, text=True)
 
         # If the subprocess exited with a non-zero return code, raise an error
