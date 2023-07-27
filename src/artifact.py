@@ -303,6 +303,9 @@ def main() -> int:
     printer.colorize = args.color
 
     # Sanity-check
+    if args.push and not args.remote:
+        printer.error("Error: `--push` requires `--remote`")
+        return 1
     if args.push_tag and not args.push:
         printer.error("Error: `--push-tag` requires `--push`")
         return 1
