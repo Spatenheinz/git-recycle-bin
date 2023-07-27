@@ -348,13 +348,19 @@ def main() -> int:
         if args.force_branch:
             rbgit.cmd("push", "--force", remote_bin_name, d['bin_branch_name'], capture_output=False)
         else:
-            rbgit.cmd("push",            remote_bin_name, d['bin_branch_name'], capture_output=False)
+            if rbgit.remote_already_has_ref(remote_bin_name, d['bin_branch_name']):
+                printer.always(f"Remote artifact-repo already has {d['bin_branch_name']} -- and we won't force push.")
+            else:
+                rbgit.cmd("push",        remote_bin_name, d['bin_branch_name'], capture_output=False)
 
         printer.high_level(f"Pushing to remote artifact-repo: Artifact meta-data {d['bin_ref_only_metadata']}", file=sys.stderr)
         if args.force_branch:
             rbgit.cmd("push", "--force", remote_bin_name, d['bin_ref_only_metadata'], capture_output=False)
         else:
-            rbgit.cmd("push",            remote_bin_name, d['bin_ref_only_metadata'], capture_output=False)
+            if rbgit.remote_already_has_ref(remote_bin_name, d['bin_ref_only_metadata']):
+                printer.always(f"Remote artifact-repo already has {d['bin_ref_only_metadata']} -- and we won't force push.")
+            else:
+                rbgit.cmd("push",        remote_bin_name, d['bin_ref_only_metadata'], capture_output=False)
 
     if args.push_tag:
         if not d['bin_tag_name']:
