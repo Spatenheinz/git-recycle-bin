@@ -405,6 +405,10 @@ def push_tag(args, d, rbgit, remote_bin_name):
         printer.error("Error: You are in Detached HEAD, so you can't push a tag to bin-remote with name of your source branch.", file=sys.stderr)
         return
 
+    if d['src_commits_ahead'] != "" and int(d['src_commits_ahead']) >= 1:
+        printer.error(f"Error: Your local branch is ahead by {d['src_commits_ahead']} commits of its upstream authoritative branch. Won't push tag to bin-remote.", file=sys.stderr)
+        return
+
     remote_bin_sha_commit = rbgit.fetch_current_tag_value(remote_bin_name, d['bin_tag_name'])
     if remote_bin_sha_commit:
         printer.high_level(f"Bin-remote already has a tag named {d['bin_tag_name']} pointing to {remote_bin_sha_commit[:8]}.", file=sys.stderr)
