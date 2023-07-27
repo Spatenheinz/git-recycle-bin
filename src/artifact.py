@@ -304,7 +304,6 @@ def main() -> int:
     parser.add_argument("--color", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_COLOR', 'True'), help="Colorized output")
 
     # TODO: Unify --push and --force, as --push={yes, no, force}
-    # TODO: Add --rm-tmp to delete the local .rbgit repo
     # TODO: Add --add-submodule to add src-git as a {update=none, shallow, nonrecursive} submodule in artifact-commit.
     # TODO: Add --src-note to add+push a git-note in src-repo, that we have this artifact available.
     # TODO: Add --delete-expired to delete expired branches. Unreferenced objects can then be git-gc'd remote-side.
