@@ -179,7 +179,7 @@ def parse_commit_msg(commit_msg):
 
 
 
-def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branch: str = "in 30 days") -> str:
+def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branch: str) -> str:
     """ Create Artifact: A binary commit, with builtin traceability and expiry """
     if not os.path.exists(binpath):
         raise RuntimeError(f"Artifact '{binpath}' does not exist!")
@@ -289,19 +289,29 @@ def str2bool(v):
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Create and push artifacts - which have traceability and expiry")
-    parser.add_argument("--name", required=True, type=str, default=os.getenv('GITRB_NAME'), help="Name to assign to the artifact. Will be sanitized.")
-    parser.add_argument("--path", required=True, type=str, default=os.getenv('GITRB_PATH'), help="Path to artifact in src-repo. File or folder.")
-    parser.add_argument("--remote", required=False, type=str, default=os.getenv('GITRB_REMOTE'), help="Git remote URL to push artifact to.")
-    parser.add_argument("--push", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH', 'False'), help="Push artifact-commit to remote.")
-    parser.add_argument("--push-tag", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH_TAG', 'False'), help="Push tag to artifact to remote.")
-    parser.add_argument("--force-branch", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE_BRANCH', 'False'), help="Force push of branch.")
-    parser.add_argument("--force-tag", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE_TAG', 'False'), help="Force push of tag.")
-    parser.add_argument("--rm-tmp", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_RM_TMP', 'False'), help="Remove local bin-repo.")
+    class CustomHelpFormatter(argparse.HelpFormatter):
+        def __init__(self, prog):
+            super().__init__(prog, indent_increment=2, max_help_position=30)
 
-    parser.add_argument('-v', '--verbose', action='count', dest='verbosity', default=1, help="Increase output verbosity. Can be repeated")
-    parser.add_argument('-q', '--quiet', action='store_const', dest='verbosity', const=0, help="Suppress output")
-    parser.add_argument("--color", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_COLOR', 'True'), help="Colorized output")
+    parser = argparse.ArgumentParser(description="Create and push artifacts in git - with expiry and traceability.", formatter_class=CustomHelpFormatter)
+
+    g = parser.add_argument_group('Typical arguments')
+    g.add_argument(                   "--path",   metavar='file|dir', required=True,  type=str, default=os.getenv('GITRB_PATH'),       help="Path to artifact in src-repo. Directory or file.")
+    g.add_argument(                   "--name",   metavar='string',   required=True,  type=str, default=os.getenv('GITRB_NAME'),       help="Name to assign to the artifact. Will be sanitized.")
+    g.add_argument(                   "--remote", metavar='URL',      required=False, type=str, default=os.getenv('GITRB_REMOTE'),     help="Git remote URL to push artifact to.")
+    dv = 'in 30 days'; g.add_argument("--expire", metavar='fuzz',     required=False, type=str, default=os.getenv('GITRB_EXPIRE', dv), help=f"Expiry of artifact's branch. Fuzzy date. Default '{dv}'.")
+    dv = 'False'; g.add_argument("--push",     metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH', dv),     help=f"Push artifact-commit to remote. Default {dv}.")
+    dv = 'False'; g.add_argument("--push-tag", metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH_TAG', dv), help=f"Push tag to artifact to remote. Default {dv}.")
+
+    g = parser.add_argument_group('Niche arguments')
+    dv = 'False'; g.add_argument("--force-branch", metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE_BRANCH', dv), help=f"Force push of branch. Default {dv}.")
+    dv = 'False'; g.add_argument("--force-tag",    metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE_TAG', dv),    help=f"Force push of tag. Default {dv}.")
+    dv = 'True';  g.add_argument("--rm-tmp",       metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_RM_TMP', dv),       help=f"Remove local bin-repo. Default {dv}.")
+
+    g = parser.add_argument_group('Terminal output style')
+    dv = 'True'; g.add_argument("--color", metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_COLOR', dv), help=f"Colorized output. Default {dv}.")
+    g.add_argument('-v', '--verbose', action='count', dest='verbosity', default=1, help="Increase output verbosity. Can be repeated, e.g. -vv.")
+    g.add_argument('-q', '--quiet', action='store_const', dest='verbosity', const=0, help="Suppress output.")
 
     # TODO: Unify --push and --force, as --push={yes, no, force}
     # TODO: Add --add-submodule to add src-git as a {update=none, shallow, nonrecursive} submodule in artifact-commit.
@@ -311,6 +321,10 @@ def main() -> int:
     args = parser.parse_args()
     printer.verbosity = args.verbosity
     printer.colorize = args.color
+
+    printer.debug("Arguments:")
+    for arg in vars(args):
+        printer.debug(f"  '{arg}': '{getattr(args, arg)}'")
 
     # Sanity-check
     if args.push and not args.remote:
@@ -334,7 +348,7 @@ def main() -> int:
     rbgit = RbGit(printer, rbgit_dir=rbgit_dir, rbgit_work_tree=nca_dir)
 
     printer.high_level(f"Making local commit of artifact {args.path} in artifact-repo at {rbgit.rbgit_dir}", file=sys.stderr)
-    d = create_artifact_commit(rbgit, args.name, args.path)
+    d = create_artifact_commit(rbgit, args.name, args.path, args.expire)
     if d['bin_tag_name']:
         rbgit.set_tag(tag_name=d['bin_tag_name'], tag_val=d['bin_sha_commit'])
     printer.detail(rbgit.cmd("branch", "-vv"))
