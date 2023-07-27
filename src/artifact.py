@@ -187,7 +187,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, ttl: str = "
     elif os.path.ismount(binpath): d['artifact_mime'] = "mount"
     else: d['artifact_mime'] = "unknown"
 
-    d['src_remote_name'] = "origin"    # TODO: Expose as argument
+    d['src_remote_name'] = "origin"    # TODO: Take from local branch (if not detached HEAD) tracking branch
     d['src_sha']          = exec(["git", "rev-parse", "HEAD"])  # full sha
     d['src_sha_short']    = exec(["git", "rev-parse", "--short", "HEAD"])  # human readable
     d['src_sha_msg']      = exec(["git", "show", "--no-patch", "--format=%B", d['src_sha']]);
@@ -291,10 +291,10 @@ def main() -> int:
     parser.add_argument("--color", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_COLOR', 'True'), help="Colorized output")
 
     # TODO: Unify --push and --force, as --push={yes, no, force}
-    # TODO: Add --clean to delete the .rbgit repo, or like docker's --rm
-    # TODO: Add --submodule to add a src/ submodule back to the src-repo.
-    # TODO: Create other script for the bin-side: CI expiry / branch-deletion.
-    # TODO: Create other script for the bin-side: Setting latest tag
+    # TODO: Add --rm-tmp to delete the local .rbgit repo
+    # TODO: Add --add-submodule to add src-git as a {update=none, shallow, nonrecursive} submodule in artifact-commit.
+    # TODO: Add --src-note to add+push a git-note in src-repo, that we have this artifact available.
+    # TODO: Add --delete-expired to delete expired branches. Unreferenced objects can then be git-gc'd remote-side.
 
     args = parser.parse_args()
     printer.verbosity = args.verbosity
@@ -326,12 +326,13 @@ def main() -> int:
 
     if args.push:
         # Push branch first, then meta-data (we don't want meta-data to be pushed if branch push fails).
+        # Branch might exist already upstream.
         # Pushing may take long, so always show stdout and stderr without capture.
         printer.high_level(f"Pushing to remote artifact-repo: Artifact data on branch {d['bin_branch_name']}", file=sys.stderr)
         if args.force_branch:
-            rbgit.cmd("push", "--force", remote_bin_name, d['bin_branch_name'], capture_output=False)  # Branch might exist already upstream. Policy TODO
+            rbgit.cmd("push", "--force", remote_bin_name, d['bin_branch_name'], capture_output=False)
         else:
-            rbgit.cmd("push",            remote_bin_name, d['bin_branch_name'], capture_output=False)  # Branch might exist already upstream. Policy TODO
+            rbgit.cmd("push",            remote_bin_name, d['bin_branch_name'], capture_output=False)
 
         printer.high_level(f"Pushing to remote artifact-repo: Artifact meta-data {d['bin_ref_only_metadata']}", file=sys.stderr)
         if args.force_branch:
