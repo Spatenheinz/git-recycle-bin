@@ -7,13 +7,17 @@ import argparse
 import subprocess
 import mimetypes
 from itertools import takewhile
+
 from datetime import datetime
+from dateutil.tz import tzlocal
+import maya
 
 from rbgit import RbGit
 from printer import Printer
 
-# Don't change the date format! This could break parsing
-date_fmt = "%a, %d %b %Y %H:%M:%S %z"
+# Don't change the date formats! This will break parsing
+date_fmt_git = "%a, %d %b %Y %H:%M:%S %z"  # E.g. "Thu, 27 Jul 2023 13:15:26 +0200". Git commit times, human readable
+date_fmt_expire = "%Y-%m-%d/%H.%M%z"  # E.g. "2023-07-27/13:14+0200". Used in branch-names, machine sortable
 
 printer = Printer(verbosity=2, colorize=True)
 
@@ -110,6 +114,15 @@ def rel_dir(pfrom, pto):
     return os.path.relpath(abs_pto, abs_pfrom)
 
 
+def parse_fuzzy_time(fuzzy_time: str):
+    dt = maya.when(fuzzy_time)
+    if dt.timezone == 'UTC':
+        dt = dt.datetime().astimezone(tzlocal())
+    return dt
+
+def date_fuzzy2expiryformat(fuzzy_date: str) -> str:
+    dt_obj = parse_fuzzy_time(fuzzy_date)
+    return datetime.strftime(dt_obj, date_fmt_expire)
 
 def date_formatted2unix(date_string: str, date_format: str):
     """
@@ -132,7 +145,6 @@ def emit_commit_msg(d: dict):
         artifact-name: {d['artifact_name']}
         artifact-mime-type: {d['artifact_mime']}
         artifact-tree-prefix: {d['artifact_relpath_nca']}
-        artifact-time-to-live: {d['ttl']}
         src-git-relpath: {d['artifact_relpath_src']}
         src-git-commit-title: {d['src_sha_title']}
         src-git-commit-sha: {d['src_sha']}
@@ -167,7 +179,7 @@ def parse_commit_msg(commit_msg):
 
 
 
-def create_artifact_commit(rbgit, artifact_name: str, binpath: str, ttl: str = "30 days") -> str:
+def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branch: str = "in 30 days") -> str:
     """ Create Artifact: A binary commit, with builtin traceability and expiry """
     if not os.path.exists(binpath):
         raise RuntimeError(f"Artifact '{binpath}' does not exist!")
@@ -180,7 +192,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, ttl: str = "
     d = {}
     d['artifact_name'] = artifact_name
     d['binpath'] = binpath
-    d['ttl'] = ttl
+    d['bin_branch_expire'] = date_fuzzy2expiryformat(expire_branch)
 
     if os.path.isfile(binpath): d['artifact_mime'] = mimetypes.guess_type(binpath)
     elif os.path.isdir(binpath): d['artifact_mime'] = "directory"
@@ -196,12 +208,12 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, ttl: str = "
 
     # Author time is when the commit was first committed.
     # Author time is easily set with `git commit --date`.
-    d['src_time_author']  = exec(["git", "show", "-s", "--format=%ad", f"--date=format:{date_fmt}", d['src_sha']])
+    d['src_time_author']  = exec(["git", "show", "-s", "--format=%ad", f"--date=format:{date_fmt_git}", d['src_sha']])
 
     # Commiter time changes every time the commit-SHA changes, for example {rebasing, amending, ...}.
     # Commiter time can be set with $GIT_COMMITTER_DATE or `git rebase --committer-date-is-author-date`.
     # Commiter time is monotonically increasing but sampled locally, so graph could still be non-monotonic if a collaborator has a very wrong clock.
-    d['src_time_commit']  = exec(["git", "show", "-s", "--format=%cd", f"--date=format:{date_fmt}", d['src_sha']])
+    d['src_time_commit']  = exec(["git", "show", "-s", "--format=%cd", f"--date=format:{date_fmt_git}", d['src_sha']])
 
     d['src_branch']       = exec(["git", "rev-parse", "--abbrev-ref", "HEAD"]);
     d['src_repo_url']     = exec(["git", "config", "--get", f"remote.{d['src_remote_name']}.url"])
@@ -226,9 +238,8 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, ttl: str = "
     d['artifact_relpath_nca'] = rel_dir(pto=binpath, pfrom=d['nca_dir'])        # Relative path to artifact from nca_dir. Artifact is always within nca_dir
     d['artifact_relpath_src'] = rel_dir(pto=binpath, pfrom=d['src_tree_root'])  # Relative path to artifact from src-git-root. Artifact might be outside of source git.
 
-    # TODO: Replace "auto" with "fixed" and "latest"
-    d['bin_branch_name'] = f"auto/artifact/{d['src_repo']}@{d['src_sha']}/{{{d['artifact_relpath_nca']}}}"
-    d['bin_tag_name']    = f"auto/artifact/{d['src_repo']}@{d['src_branch']}/{{{d['artifact_relpath_nca']}}}" if d['src_branch'] != "HEAD" else None
+    d['bin_branch_name'] = f"artifact/expire/{d['bin_branch_expire']}/{d['src_repo']}@{d['src_sha']}/{{{d['artifact_relpath_nca']}}}"
+    d['bin_tag_name']    = f"artifact/latest/{d['src_repo']}@{d['src_branch']}/{{{d['artifact_relpath_nca']}}}" if d['src_branch'] != "HEAD" else None
 
     d['bin_commit_msg'] = emit_commit_msg(d)
 
@@ -374,8 +385,8 @@ def main() -> int:
 
             commit_time_theirs = parse_commit_msg(remote_meta)['src-git-commit-time-commit']
             commit_time_ours = d['src_time_commit']
-            commit_time_theirs_u = date_formatted2unix(commit_time_theirs, date_fmt)
-            commit_time_ours_u = date_formatted2unix(commit_time_ours, date_fmt)
+            commit_time_theirs_u = date_formatted2unix(commit_time_theirs, date_fmt_git)
+            commit_time_ours_u = date_formatted2unix(commit_time_ours, date_fmt_git)
             printer.high_level(f"Our artifact {d['bin_sha_commit'][:8]} has src committer-time:   {commit_time_ours} ({commit_time_theirs_u})", file=sys.stderr)
             printer.high_level(f"Their artifact {remote_bin_sha_commit[:8]} has src committer-time: {commit_time_theirs} ({commit_time_ours_u})", file=sys.stderr)
 
