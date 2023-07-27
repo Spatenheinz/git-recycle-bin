@@ -329,7 +329,7 @@ def main() -> int:
     rbgit_dir=f"{nca_dir}/.rbgit"
 
     if args.rm_tmp and os.path.exists(rbgit_dir):
-        printer.high_level(f"Deleting local bin repo, {rbgit_dir}, to start from clean-slate.")
+        printer.high_level(f"Deleting local bin repo, {rbgit_dir}, to start from clean-slate.", file=sys.stderr)
         shutil.rmtree(rbgit_dir)
 
     rbgit = RbGit(printer, rbgit_dir=rbgit_dir, rbgit_work_tree=nca_dir)
@@ -405,7 +405,7 @@ def main() -> int:
             rbgit.cmd("push", remote_bin_name, d['bin_tag_name'])  # Create new tag; push with force is not necessary
 
     if args.rm_tmp and os.path.exists(rbgit_dir):
-        printer.high_level(f"Deleting local bin repo, {rbgit_dir}, to free-up disk-space.")
+        printer.high_level(f"Deleting local bin repo, {rbgit_dir}, to free-up disk-space.", file=sys.stderr)
         shutil.rmtree(rbgit_dir)
 
     return 0
