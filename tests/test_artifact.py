@@ -21,8 +21,8 @@ def test_date_formatted2unix():
     assert artifact.date_formatted2unix("Wed, 21 Jun 2023 14:13:31 +0200", "%a, %d %b %Y %H:%M:%S %z") == 1687349611
 
 def test_absolute_date():
-    assert artifact.date_fuzzy2expiryformat("2023-07-27 CEST") == "2023-07-27/00:00+0200"
-    assert artifact.date_fuzzy2expiryformat("Mon, 1 Feb 1994 21:21:42 GMT") == "1994-02-01/22:21+0100"
+    assert artifact.date_fuzzy2expiryformat("2023-07-27 CEST") == "2023-07-27/00.00+0200"
+    assert artifact.date_fuzzy2expiryformat("Mon, 1 Feb 1994 21:21:42 GMT") == "1994-02-01/22.21+0100"
 
 def test_relative_date():
     assert artifact.date_fuzzy2expiryformat("now") == datetime.datetime.now(tzlocal()).strftime(artifact.date_fmt_expire)
