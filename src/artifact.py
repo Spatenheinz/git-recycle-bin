@@ -365,63 +365,72 @@ def main() -> int:
         rbgit.add_remote_idempotent(name=remote_bin_name, url=args.remote)
 
     if args.push:
-        # Push branch first, then meta-data (we don't want meta-data to be pushed if branch push fails).
-        # Branch might exist already upstream.
-        # Pushing may take long, so always show stdout and stderr without capture.
-        printer.high_level(f"Pushing to remote artifact-repo: Artifact data on branch {d['bin_branch_name']}", file=sys.stderr)
-        if args.force_branch:
-            rbgit.cmd("push", "--force", remote_bin_name, d['bin_branch_name'], capture_output=False)
-        else:
-            if rbgit.remote_already_has_ref(remote_bin_name, d['bin_branch_name']):
-                printer.always(f"Remote artifact-repo already has {d['bin_branch_name']} -- and we won't force push.")
-            else:
-                rbgit.cmd("push",        remote_bin_name, d['bin_branch_name'], capture_output=False)
-
-        printer.high_level(f"Pushing to remote artifact-repo: Artifact meta-data {d['bin_ref_only_metadata']}", file=sys.stderr)
-        if args.force_branch:
-            rbgit.cmd("push", "--force", remote_bin_name, d['bin_ref_only_metadata'], capture_output=False)
-        else:
-            if rbgit.remote_already_has_ref(remote_bin_name, d['bin_ref_only_metadata']):
-                printer.always(f"Remote artifact-repo already has {d['bin_ref_only_metadata']} -- and we won't force push.")
-            else:
-                rbgit.cmd("push",        remote_bin_name, d['bin_ref_only_metadata'], capture_output=False)
+        push_branch(args, d, rbgit, remote_bin_name)
 
     if args.push_tag:
-        if not d['bin_tag_name']:
-            printer.error("Error: You are in Detached HEAD, so you can't push a tag to bin-remote with name of your source branch.", file=sys.stderr)
-            return 1
-
-        remote_bin_sha_commit = rbgit.fetch_current_tag_value(remote_bin_name, d['bin_tag_name'])
-        if remote_bin_sha_commit:
-            printer.high_level(f"Bin-remote already has a tag named {d['bin_tag_name']} pointing to {remote_bin_sha_commit[:8]}.", file=sys.stderr)
-            remote_meta = rbgit.fetch_cat_pretty(remote_bin_name, f"refs/artifact/meta-for-commit/{remote_bin_sha_commit}")
-
-            commit_time_theirs = parse_commit_msg(remote_meta)['src-git-commit-time-commit']
-            commit_time_ours = d['src_time_commit']
-            commit_time_theirs_u = date_formatted2unix(commit_time_theirs, date_fmt_git)
-            commit_time_ours_u = date_formatted2unix(commit_time_ours, date_fmt_git)
-            printer.high_level(f"Our artifact {d['bin_sha_commit'][:8]} has src committer-time:   {commit_time_ours} ({commit_time_theirs_u})", file=sys.stderr)
-            printer.high_level(f"Their artifact {remote_bin_sha_commit[:8]} has src committer-time: {commit_time_theirs} ({commit_time_ours_u})", file=sys.stderr)
-
-            if commit_time_ours_u > commit_time_theirs_u:
-                printer.high_level(f"Our artifact is newer than theirs. Updating...", file=sys.stderr)
-                rbgit.cmd("push", "--force", remote_bin_name, d['bin_tag_name'])  # Push with force is necessary to update existing tag
-            else:
-                if not args.force_tag:
-                    printer.high_level(f"Our artifact is not newer than theirs. Leaving remote tag as-is.", file=sys.stderr)
-                else:
-                    printer.high_level(f"Our artifact is not newer than theirs. Forcing update to remote tag.", file=sys.stderr)
-                    rbgit.cmd("push", "--force", remote_bin_name, d['bin_tag_name'])  # Push with force is necessary to update existing tag
-
-        else:
-            printer.high_level(f"Bin-remote does not have a tag named {d['bin_tag_name']} -- we'll publish it.", file=sys.stderr)
-            rbgit.cmd("push", remote_bin_name, d['bin_tag_name'])  # Create new tag; push with force is not necessary
+        push_tag(args, d, rbgit, remote_bin_name)
 
     if args.rm_tmp and os.path.exists(rbgit_dir):
         printer.high_level(f"Deleting local bin repo, {rbgit_dir}, to free-up disk-space.", file=sys.stderr)
         shutil.rmtree(rbgit_dir)
 
     return 0
+
+
+def push_branch(args, d, rbgit, remote_bin_name):
+    # Push branch first, then meta-data (we don't want meta-data to be pushed if branch push fails).
+    # Branch might exist already upstream.
+    # Pushing may take long, so always show stdout and stderr without capture.
+    printer.high_level(f"Pushing to remote artifact-repo: Artifact data on branch {d['bin_branch_name']}", file=sys.stderr)
+    if args.force_branch:
+        rbgit.cmd("push", "--force", remote_bin_name, d['bin_branch_name'], capture_output=False)
+    else:
+        if rbgit.remote_already_has_ref(remote_bin_name, d['bin_branch_name']):
+            printer.always(f"Remote artifact-repo already has {d['bin_branch_name']} -- and we won't force push.")
+        else:
+            rbgit.cmd("push",        remote_bin_name, d['bin_branch_name'], capture_output=False)
+
+    printer.high_level(f"Pushing to remote artifact-repo: Artifact meta-data {d['bin_ref_only_metadata']}", file=sys.stderr)
+    if args.force_branch:
+        rbgit.cmd("push", "--force", remote_bin_name, d['bin_ref_only_metadata'], capture_output=False)
+    else:
+        if rbgit.remote_already_has_ref(remote_bin_name, d['bin_ref_only_metadata']):
+            printer.always(f"Remote artifact-repo already has {d['bin_ref_only_metadata']} -- and we won't force push.")
+        else:
+            rbgit.cmd("push",        remote_bin_name, d['bin_ref_only_metadata'], capture_output=False)
+
+
+def push_tag(args, d, rbgit, remote_bin_name):
+    if not d['bin_tag_name']:
+        printer.error("Error: You are in Detached HEAD, so you can't push a tag to bin-remote with name of your source branch.", file=sys.stderr)
+        return
+
+    remote_bin_sha_commit = rbgit.fetch_current_tag_value(remote_bin_name, d['bin_tag_name'])
+    if remote_bin_sha_commit:
+        printer.high_level(f"Bin-remote already has a tag named {d['bin_tag_name']} pointing to {remote_bin_sha_commit[:8]}.", file=sys.stderr)
+        remote_meta = rbgit.fetch_cat_pretty(remote_bin_name, f"refs/artifact/meta-for-commit/{remote_bin_sha_commit}")
+
+        commit_time_theirs = parse_commit_msg(remote_meta)['src-git-commit-time-commit']
+        commit_time_ours = d['src_time_commit']
+        commit_time_theirs_u = date_formatted2unix(commit_time_theirs, date_fmt_git)
+        commit_time_ours_u = date_formatted2unix(commit_time_ours, date_fmt_git)
+        printer.high_level(f"Our artifact {d['bin_sha_commit'][:8]} has src committer-time:   {commit_time_ours} ({commit_time_theirs_u})", file=sys.stderr)
+        printer.high_level(f"Their artifact {remote_bin_sha_commit[:8]} has src committer-time: {commit_time_theirs} ({commit_time_ours_u})", file=sys.stderr)
+
+        if commit_time_ours_u > commit_time_theirs_u:
+            printer.high_level(f"Our artifact is newer than theirs. Updating...", file=sys.stderr)
+            rbgit.cmd("push", "--force", remote_bin_name, d['bin_tag_name'])  # Push with force is necessary to update existing tag
+        else:
+            if not args.force_tag:
+                printer.high_level(f"Our artifact is not newer than theirs. Leaving remote tag as-is.", file=sys.stderr)
+            else:
+                printer.high_level(f"Our artifact is not newer than theirs. Forcing update to remote tag.", file=sys.stderr)
+                rbgit.cmd("push", "--force", remote_bin_name, d['bin_tag_name'])  # Push with force is necessary to update existing tag
+
+    else:
+        printer.high_level(f"Bin-remote does not have a tag named {d['bin_tag_name']} -- we'll publish it.", file=sys.stderr)
+        rbgit.cmd("push", remote_bin_name, d['bin_tag_name'])  # Create new tag; push with force is not necessary
+
 
 if __name__ == "__main__":
     ret = main()
