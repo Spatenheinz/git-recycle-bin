@@ -87,6 +87,11 @@ class RbGit:
         sizes = [int(re.split(r'\s+', line)[3]) for line in lines.splitlines()]
         return sum(sizes)
 
+    def remote_already_has_ref(self, remote: str, ref_name: str):
+        """ `ls-remote` is pretty forgiving, e.g. either {master, refs/heads/master} will be found """
+        lines = self.cmd("ls-remote", remote, ref_name)
+        return (lines != "")
+
     def fetch_current_tag_value(self, remote: str, tag_name: str):
         lines = self.cmd("ls-remote", "--tags", remote, tag_name)
         for line in lines.splitlines():
