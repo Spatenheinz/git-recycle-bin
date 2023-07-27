@@ -2,6 +2,7 @@
 import os
 import re
 import sys
+import shutil
 import argparse
 import subprocess
 import mimetypes
@@ -285,6 +286,7 @@ def main() -> int:
     parser.add_argument("--push-tag", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH_TAG', 'False'), help="Push tag to artifact to remote.")
     parser.add_argument("--force-branch", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE_BRANCH', 'False'), help="Force push of branch.")
     parser.add_argument("--force-tag", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE_TAG', 'False'), help="Force push of tag.")
+    parser.add_argument("--rm-tmp", type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_RM_TMP', 'False'), help="Remove local bin-repo.")
 
     parser.add_argument('-v', '--verbose', action='count', dest='verbosity', default=1, help="Increase output verbosity. Can be repeated")
     parser.add_argument('-q', '--quiet', action='store_const', dest='verbosity', const=0, help="Suppress output")
@@ -310,7 +312,13 @@ def main() -> int:
 
     src_tree_root = exec(["git", "rev-parse", "--show-toplevel"])
     nca_dir = nca_path(src_tree_root, args.path)
-    rbgit = RbGit(printer, rbgit_dir=f"{nca_dir}/.rbgit", rbgit_work_tree=nca_dir)
+    rbgit_dir=f"{nca_dir}/.rbgit"
+
+    if args.rm_tmp and os.path.exists(rbgit_dir):
+        printer.high_level(f"Deleting local bin repo, {rbgit_dir}, to start from clean-slate.")
+        shutil.rmtree(rbgit_dir)
+
+    rbgit = RbGit(printer, rbgit_dir=rbgit_dir, rbgit_work_tree=nca_dir)
 
     printer.high_level(f"Making local commit of artifact {args.path} in artifact-repo at {rbgit.rbgit_dir}", file=sys.stderr)
     d = create_artifact_commit(rbgit, args.name, args.path)
@@ -375,6 +383,10 @@ def main() -> int:
         else:
             printer.high_level(f"Bin-remote does not have a tag named {d['bin_tag_name']} -- we'll publish it.", file=sys.stderr)
             rbgit.cmd("push", remote_bin_name, d['bin_tag_name'])  # Create new tag; push with force is not necessary
+
+    if args.rm_tmp and os.path.exists(rbgit_dir):
+        printer.high_level(f"Deleting local bin repo, {rbgit_dir}, to free-up disk-space.")
+        shutil.rmtree(rbgit_dir)
 
     return 0
 
