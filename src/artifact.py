@@ -322,6 +322,11 @@ def main() -> int:
     remote_bin_name = "recyclebin"
 
     if args.remote:
+        if args.remote == ".":
+            src_git_dir = exec(["git", "rev-parse", "--absolute-git-dir"])
+            printer.high_level(f"Will push artifact to local src-git, {src_git_dir}")
+            args.remote = src_git_dir
+
         rbgit.add_remote_idempotent(name=remote_bin_name, url=args.remote)
 
     if args.push:
