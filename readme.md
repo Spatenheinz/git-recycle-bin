@@ -23,7 +23,7 @@ Meta-data is stored as trailer fields in the commit message, forming a schema, e
 * `artifact-schema-version: 1` : Integer. The version of the schema.
 * `artifact-name: Aurora-RST-Documentation` : String. Name of the artifact.
 * `artifact-mime-type: directory` : String or tuple. MIME type of the artifact.
-  - One of {[`mimetypes.guess_type()`](https://docs.python.org/3/library/mimetypes.html), `directory`, `link`, `mount`, `unknown`}.
+  - One of {[`mimetypes.guess_type()`](https://docs.python.org/3/library/mimetypes.html#mimetypes.guess_type), `directory`, `link`, `mount`, `unknown`}.
 * `artifact-tree-prefix: obj/doc/html` : String. Files in this artifact commit all share this directory-prefix.
   - Either `.` or some directory-prefix. (A directory-prefix can make merges of artifact-commits conflict-free)
 * `src-git-relpath: ../obj/doc/html` : String. Relative path to artifact from source-git's root.
