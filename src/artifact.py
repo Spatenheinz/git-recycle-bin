@@ -330,8 +330,9 @@ def main() -> int:
     g.add_argument(                   "--name",   metavar='string',   required=True,  type=str, default=os.getenv('GITRB_NAME'),       help="Name to assign to the artifact. Will be sanitized.")
     g.add_argument(                   "--remote", metavar='URL',      required=False, type=str, default=os.getenv('GITRB_REMOTE'),     help="Git remote URL to push artifact to.")
     dv = 'in 30 days'; g.add_argument("--expire", metavar='fuzz',     required=False, type=str, default=os.getenv('GITRB_EXPIRE', dv), help=f"Expiry of artifact's branch. Fuzzy date. Default '{dv}'.")
-    dv = 'False'; g.add_argument("--push",     metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH', dv),     help=f"Push artifact-commit to remote. Default {dv}.")
-    dv = 'False'; g.add_argument("--push-tag", metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH_TAG', dv), help=f"Push tag to artifact to remote. Default {dv}.")
+    dv = 'False'; g.add_argument("--push",       metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH', dv),     help=f"Push artifact-commit to remote. Default {dv}.")
+    dv = 'False'; g.add_argument("--push-tag",   metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH_TAG', dv), help=f"Push tag to artifact to remote. Default {dv}.")
+    dv = 'False'; g.add_argument("--rm-expired", metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_RM_EXPIRED', dv), help=f"Delete expired artifact branches. Default {dv}.")
 
     g = parser.add_argument_group('Niche arguments')
     dv = 'False'; g.add_argument("--force-branch", metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE_BRANCH', dv), help=f"Force push of branch. Default {dv}.")
@@ -400,6 +401,9 @@ def main() -> int:
     if args.push_tag:
         push_tag(args, d, rbgit, remote_bin_name)
 
+    if args.rm_expired:
+        remote_delete_expired_branches(args, d, rbgit, remote_bin_name)
+
     if args.rm_tmp and os.path.exists(rbgit_dir):
         printer.high_level(f"Deleting local bin repo, {rbgit_dir}, to free-up disk-space.", file=sys.stderr)
         shutil.rmtree(rbgit_dir)
@@ -464,6 +468,40 @@ def push_tag(args, d, rbgit, remote_bin_name):
     else:
         printer.high_level(f"Bin-remote does not have a tag named {d['bin_tag_name']} -- we'll publish it.", file=sys.stderr)
         rbgit.cmd("push", remote_bin_name, d['bin_tag_name'])  # Create new tag; push with force is not necessary
+
+
+def remote_delete_expired_branches(args, d, rbgit, remote_bin_name):
+    """
+        Delete refs of expired branches on remote. Artifacts may still be kept alive by other refs, e.g. by latest-tag.
+        Reclaiming disk-space on remote, requires running `git gc` or its equivalent -- _Housekeeping_ on GitLab.
+        See https://docs.gitlab.com/ee/administration/housekeeping.html
+        TODO: Library to RPC trigger housekeeping/GC for {gitlab, github, gittea, gerrit, gitetcetc}?
+    """
+    branch_prefix = "artifact/expire/"
+    lines = rbgit.cmd("ls-remote", "--heads", remote_bin_name, f"refs/heads/{branch_prefix}*").splitlines()
+
+    now = datetime.datetime.now(tzlocal())
+
+    for line in lines:
+        _, branch = line.split(maxsplit=1)
+
+        # Timezone may be absent, but we insist on date and time
+        date_time_tz = parse_expire_date(branch)
+        if date_time_tz['date'] == None: continue
+        if date_time_tz['time'] == None: continue
+        if date_time_tz['tzoffset'] == None:
+            date_time_tz['tzoffset'] = datetime.datetime.strftime(now, "%z")
+
+        compliant_expire_string = f"{date_time_tz['date']}/{date_time_tz['time']}{date_time_tz['tzoffset']}"
+        expiry = date_parse_formatted(date_string=compliant_expire_string, date_format=date_fmt_expire)
+        delta_formatted = format_timespan(dt_from=now, dt_to=expiry)
+
+        if expiry.timestamp() > now.timestamp():
+            printer.detail("Active", delta_formatted, branch)
+            continue
+
+        printer.high_level("Expired", delta_formatted, branch)
+        rbgit.cmd("push", remote_bin_name, "--delete", branch)
 
 
 if __name__ == "__main__":
