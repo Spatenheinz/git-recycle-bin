@@ -52,3 +52,19 @@ def test_invalid_date():
         artifact.date_fuzzy2expiryformat("invalid")
     with pytest.raises(ValueError):
         assert artifact.date_fuzzy2expiryformat("Mon, 32 Feb 1994 21:21:42 GMT") == "there is no Feb 32"
+
+def test_parse_expire_datetime():
+    p = "artifact/expire/"
+    assert artifact.parse_expire_date(prefix_discard=p, expiry_formatted="artifact/expire/2023-07-27/16.12")       == {"date":"2023-07-27", "time":"16.12", "tzoffset":None}
+    assert artifact.parse_expire_date(prefix_discard=p, expiry_formatted="artifact/expire/2023-07-27/16.12/")      == {"date":"2023-07-27", "time":"16.12", "tzoffset":None}
+    assert artifact.parse_expire_date(prefix_discard=p, expiry_formatted="artifact/expire/2023-07-27/16.12/foo")   == {"date":"2023-07-27", "time":"16.12", "tzoffset":None}
+    assert artifact.parse_expire_date(prefix_discard=p, expiry_formatted="artifact/expire/2023-07-27/16.12/2023-08-17/06.02/foo")   == {"date":"2023-07-27", "time":"16.12", "tzoffset":None}
+    assert artifact.parse_expire_date(prefix_discard=p, expiry_formatted="artifact/expire/2023-07-27/16.12+0200")  == {"date":"2023-07-27", "time":"16.12", "tzoffset":"+0200"}
+    assert artifact.parse_expire_date(prefix_discard=p, expiry_formatted="artifact/expire/2023-07-27/16.12+0200/") == {"date":"2023-07-27", "time":"16.12", "tzoffset":"+0200"}
+    assert artifact.parse_expire_date(prefix_discard=p, expiry_formatted="artifact/expire/2023-07-27/16.12-0200")  == {"date":"2023-07-27", "time":"16.12", "tzoffset":"-0200"}
+    assert artifact.parse_expire_date(prefix_discard=p, expiry_formatted="artifact/expire/2023-07-27/16.12-03")    == {"date":"2023-07-27", "time":"16.12", "tzoffset":None}
+    assert artifact.parse_expire_date(prefix_discard="", expiry_formatted="2023-07-27/16.12")  == {"date":"2023-07-27", "time":"16.12", "tzoffset":None}
+    assert artifact.parse_expire_date(prefix_discard="", expiry_formatted="2023-07-27/16.12/") == {"date":"2023-07-27", "time":"16.12", "tzoffset":None}
+
+def test_parse_expire_datetime_invalid():
+    assert artifact.parse_expire_date(prefix_discard="artifact/expire/", expiry_formatted="artifact/expire/30d/") == {"date":None, "time":None, "tzoffset":None}
