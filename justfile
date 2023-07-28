@@ -1,6 +1,6 @@
 # Run unit tests
 unittest:
-    pytest
+    PYTHONPATH="$PYTHONPATH:$PWD:$PWD/src" pytest
 
 # Demonstrate help
 demo0:
