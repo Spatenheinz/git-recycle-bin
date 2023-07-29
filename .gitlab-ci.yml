@@ -20,62 +20,44 @@ unittest:
 demo0:
   stage: demos
   script:
-    - nix-shell --run 'git config --local user.email "you@example.com"'
-    - nix-shell --run 'git config --local user.name "Your Name"'
     - nix-shell --pure --run "just demo0"
 
 demo1:
   stage: demos
   script:
-    - nix-shell --run 'git config --local user.email "you@example.com"'
-    - nix-shell --run 'git config --local user.name "Your Name"'
     - nix-shell --pure --run "just demo1"
 
 demo1_quiet:
   stage: demos
   script:
-    - nix-shell --run 'git config --local user.email "you@example.com"'
-    - nix-shell --run 'git config --local user.name "Your Name"'
     - nix-shell --pure --run "just demo1_quiet"
 
 demo1_verbose:
   stage: demos
   script:
-    - nix-shell --run 'git config --local user.email "you@example.com"'
-    - nix-shell --run 'git config --local user.name "Your Name"'
     - nix-shell --pure --run "just demo1_verbose"
 
 demo1_vverbose:
   stage: demos
   script:
-    - nix-shell --run 'git config --local user.email "you@example.com"'
-    - nix-shell --run 'git config --local user.name "Your Name"'
     - nix-shell --pure --run "just demo1_vverbose"
 
 demo2:
   stage: demos
   script:
-    - nix-shell --run 'git config --local user.email "you@example.com"'
-    - nix-shell --run 'git config --local user.name "Your Name"'
     - nix-shell --pure --run "just demo2"
 
 demo3:
   stage: demos
   script:
-    - nix-shell --run 'git config --local user.email "you@example.com"'
-    - nix-shell --run 'git config --local user.name "Your Name"'
     - nix-shell --pure --run "just demo3"
 
 demo4:
   stage: demos
   script:
-    - nix-shell --run 'git config --local user.email "you@example.com"'
-    - nix-shell --run 'git config --local user.name "Your Name"'
     - nix-shell --pure --run "just demo4"
 
 demo5:
   stage: demos
   script:
-    - nix-shell --run 'git config --local user.email "you@example.com"'
-    - nix-shell --run 'git config --local user.name "Your Name"'
     - nix-shell --pure --run "just demo5"
