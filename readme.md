@@ -65,7 +65,7 @@ These could still be useful but do no belong in the artifact's commit message; w
 
 # Usage example 1
 ```
-artifact.py \
+git_recycle_bin.py \
     --path ../obj/doc/html \
     --name "Aurora-RST-Documentation" \
     --remote git@gitlab.ci.demant.com:csfw/documentation/generated/aurora_rst_html_mpeddemo.git \

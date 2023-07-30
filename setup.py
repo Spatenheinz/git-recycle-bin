@@ -6,6 +6,6 @@ setup(name='git-recycle-bin',
       # Modules to import from other scripts:
       packages=find_packages(),
       # Executables
-      scripts=["src/artifact.py", "src/rbgit.py", "src/printer.py"],
+      scripts=["src/git_recycle_bin.py", "src/rbgit.py", "src/printer.py"],
      )
 

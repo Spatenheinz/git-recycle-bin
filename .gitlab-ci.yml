@@ -9,7 +9,7 @@ default:
 usage:
   stage: test
   script:
-    - nix-shell --pure --run "artifact.py --help"
+    - nix-shell --pure --run "git_recycle_bin.py --help"
     - nix-shell --pure --run "just --list"
 
 unittest:
