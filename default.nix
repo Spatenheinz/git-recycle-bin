@@ -2,7 +2,7 @@
 
 pkgs.python39Packages.buildPythonApplication rec {
   pname = "git-recycle-bin";
-  version = "0.1";
+  version = "0.2";
 
   src = ./.;
   format = "setuptools";
