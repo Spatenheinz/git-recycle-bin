@@ -209,7 +209,7 @@ def parse_commit_msg(commit_msg):
 
 
 
-def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branch: str) -> str:
+def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branch: str, add_ignored: bool) -> str:
     """ Create Artifact: A binary commit, with builtin traceability and expiry """
     if not os.path.exists(binpath):
         raise RuntimeError(f"Artifact '{binpath}' does not exist!")
@@ -276,7 +276,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branc
     rbgit.checkout_orphan_idempotent(d['bin_branch_name'])
 
     printer.high_level(f"Adding '{binpath}' as '{d['artifact_relpath_nca']}' ...", file=sys.stderr)
-    changes = rbgit.add(binpath)
+    changes = rbgit.add(binpath, force=add_ignored)
     if changes == True:
         # Set {author,committer}-dates: Make our new commit reproducible by copying from the source; do not sample the current time.
         # Sampling the current time would lead to new commit SHA every time, thus not idempotent.
@@ -337,6 +337,7 @@ def main() -> int:
     g = parser.add_argument_group('Niche arguments')
     g.add_argument("--user-name",  metavar='fullname', required=False, type=str, default=os.getenv('GITRB_USERNAME'), help="Author of artifact commit. Defaults to yourself.")
     g.add_argument("--user-email", metavar='address',  required=False, type=str, default=os.getenv('GITRB_EMAIL'),    help="Author's email of artifact commit. Defaults to your own.")
+    dv = 'False'; g.add_argument("--add-ignored",  metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_ADD_IGNORED', dv),  help=f"Add despite gitignore. Default {dv}.")
     dv = 'False'; g.add_argument("--force-branch", metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE_BRANCH', dv), help=f"Force push of branch. Default {dv}.")
     dv = 'False'; g.add_argument("--force-tag",    metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE_TAG', dv),    help=f"Force push of tag. Default {dv}.")
     dv = 'True';  g.add_argument("--rm-tmp",       metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_RM_TMP', dv),       help=f"Remove local bin-repo. Default {dv}.")
@@ -386,7 +387,7 @@ def main() -> int:
         rbgit.cmd("config", "--local", "user.email", args.user_email)
 
     printer.high_level(f"Making local commit of artifact {args.path} in artifact-repo at {rbgit.rbgit_dir}", file=sys.stderr)
-    d = create_artifact_commit(rbgit, args.name, args.path, args.expire)
+    d = create_artifact_commit(rbgit, args.name, args.path, args.expire, args.add_ignored)
     if d['bin_tag_name']:
         rbgit.set_tag(tag_name=d['bin_tag_name'], tag_val=d['bin_sha_commit'])
     printer.detail(rbgit.cmd("branch", "-vv"))

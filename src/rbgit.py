@@ -48,10 +48,13 @@ class RbGit:
             # If the branch doesn't exist, create it as an orphan
             self.cmd("checkout", "--orphan", branch_name)
 
-    def add(self, binpath: str) -> bool:
+    def add(self, binpath: str, force: bool = False) -> bool:
         # TODO: Check binpath exists
         changes = False
-        self.cmd("add", binpath)
+        if force:
+            self.cmd("add", "--force", binpath)
+        else:
+            self.cmd("add", binpath)
 
         try:
             # Check if there are any changes staged for the next commit
