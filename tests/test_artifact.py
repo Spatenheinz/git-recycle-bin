@@ -68,3 +68,23 @@ def test_parse_expire_datetime():
 
 def test_parse_expire_datetime_invalid():
     assert grb.parse_expire_date(prefix_discard="artifact/expire/", expiry_formatted="artifact/expire/30d/") == {"date":None, "time":None, "tzoffset":None}
+
+def test_url_redact():
+    assert grb.url_redact(url="https://foo:pass@service/my/repo.git", replacement="REDACTED") == "https://foo:REDACTED@service/my/repo.git"
+    assert grb.url_redact(url="https://foo@service/my/repo.git", replacement="REDACTED")      == "https://foo@service/my/repo.git"
+    assert grb.url_redact(url="https://service/my/repo.git", replacement="REDACTED")          == "https://service/my/repo.git"
+    assert grb.url_redact(url="https://service/my/re:po.git", replacement="REDACTED")         == "https://service/my/re:po.git"
+    assert grb.url_redact(url="https://service/my/re:po@hmm.git", replacement="REDACTED")     == "https://service/my/re:po@hmm.git"
+
+    assert grb.url_redact(url="ssh://foo:pass@service/my/repo.git", replacement="REDACTED")   == "ssh://foo:REDACTED@service/my/repo.git"
+    assert grb.url_redact(url="ssh://[foo:pass@service]/my/repo.git", replacement="REDACTED") == "ssh://[foo:REDACTED@service]/my/repo.git"
+    assert grb.url_redact(url="ssh://foo@service/my/repo.git", replacement="REDACTED")        == "ssh://foo@service/my/repo.git"
+    assert grb.url_redact(url="ssh://service/my/repo.git", replacement="REDACTED")            == "ssh://service/my/repo.git"
+    assert grb.url_redact(url="ssh://service/my/re:po.git", replacement="REDACTED")           == "ssh://service/my/re:po.git"
+    assert grb.url_redact(url="ssh://service/my/re:po@hmm.git", replacement="REDACTED")       == "ssh://service/my/re:po@hmm.git"
+
+    assert grb.url_redact(url="foo:pass@service/my/repo.git", replacement="REDACTED") == "foo:pass@service/my/repo.git"
+    assert grb.url_redact(url="foo@service/my/repo.git", replacement="REDACTED")      == "foo@service/my/repo.git"
+    assert grb.url_redact(url="service/my/repo.git", replacement="REDACTED")          == "service/my/repo.git"
+    assert grb.url_redact(url="service/my/re:po.git", replacement="REDACTED")         == "service/my/re:po.git"
+    assert grb.url_redact(url="service/my/re:po@hmm.git", replacement="REDACTED")     == "service/my/re:po@hmm.git"

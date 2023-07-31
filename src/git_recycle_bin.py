@@ -6,9 +6,9 @@ import shutil
 import argparse
 import subprocess
 import mimetypes
+import urllib.parse
 from itertools import takewhile
 
-import datetime
 import datetime
 import dateutil.relativedelta
 from dateutil.tz import tzlocal
@@ -114,6 +114,29 @@ def sanitize_branch_name(name: str) -> str:
 
     return sanitized_name
 
+
+def url_redact(url: str, replacement: str = 'REDACTED'):
+    """ Replace sensitive password/api-token from URL with a string """
+    parsed = urllib.parse.urlparse(url)
+
+    # If there is no password, return the original URL
+    if not parsed.password:
+        return url
+
+    # Redact the password/token
+    new_netloc = parsed.netloc.replace(parsed.password, replacement)
+
+    # Reconstruct the URL
+    redacted_url = urllib.parse.urlunparse((
+        parsed.scheme,
+        new_netloc,
+        parsed.path,
+        parsed.params,
+        parsed.query,
+        parsed.fragment
+    ))
+
+    return redacted_url
 
 
 def exec(command):
