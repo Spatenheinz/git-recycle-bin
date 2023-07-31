@@ -206,7 +206,7 @@ def emit_commit_msg(d: dict):
         src-git-commit-time-commit: {d['src_time_commit']}
         src-git-branch: {d['src_branch'] if d['src_branch'] != "HEAD" else "Detached HEAD"}
         src-git-repo-name: {d['src_repo']}
-        src-git-repo-url: {d['src_repo_url']}
+        src-git-repo-url: {url_redact(d['src_repo_url'])}
         src-git-commits-ahead: {d['src_commits_ahead'] if d['src_commits_ahead'] != "" else "?"}
         src-git-commits-behind: {d['src_commits_behind'] if d['src_commits_behind'] != "" else "?"}
         {prefix_lines(prefix="src-git-status: ", lines=trim_all_lines(d['src_status'] if d['src_status'] != "" else "clean"))}
