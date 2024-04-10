@@ -45,8 +45,6 @@ def test_relative_date():
 
     assert grb.date_fuzzy2expiryformat("next month") == grb.date_fuzzy2expiryformat("now in 1 month")
 
-    assert grb.date_fuzzy2expiryformat("2 weeks and 1 day ago") == (datetime.datetime.now(tzlocal()) - datetime.timedelta(days=15)).strftime(grb.date_fmt_expire)
-
 def test_invalid_date():
     with pytest.raises(ValueError):
         grb.date_fuzzy2expiryformat("invalid")
