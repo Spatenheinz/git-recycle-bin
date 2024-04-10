@@ -34,6 +34,7 @@ class RbGit:
             # Initialize git and configure
             self.cmd("init", "--initial-branch", "master", self.rbgit_work_tree)
             self.cmd("config", "--local", "core.autocrlf", "false")
+            self.cmd("config", "--local", "gc.auto", "0")
 
         # Exclude .rbgit from version control
         with open(f"{self.rbgit_dir}/info/exclude", "w") as file:
