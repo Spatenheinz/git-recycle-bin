@@ -437,7 +437,7 @@ def main() -> int:
 
     if args.rm_tmp and os.path.exists(rbgit_dir):
         printer.high_level(f"Deleting local bin repo, {rbgit_dir}, to free-up disk-space.", file=sys.stderr)
-        shutil.rmtree(rbgit_dir)
+        shutil.rmtree(rbgit_dir, ignore_errors=True)
 
     return 0
 
