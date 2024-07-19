@@ -96,7 +96,7 @@ def parse_commit_msg(commit_msg):
 
 
 
-def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branch: str, add_ignored: bool) -> str:
+def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branch: str, add_ignored: bool, src_remote_name: str) -> str:
     """ Create Artifact: A binary commit, with builtin traceability and expiry """
     if not os.path.exists(binpath):
         raise RuntimeError(f"Artifact '{binpath}' does not exist!")
@@ -113,7 +113,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branc
 
     d['artifact_mime'] = classify_path(binpath)
 
-    d['src_remote_name'] = "origin"    # TODO: Take from local branch (if not detached HEAD) tracking branch
+    d['src_remote_name']  = src_remote_name
     d['src_sha']          = exec(["git", "rev-parse", "HEAD"])  # full sha
     d['src_sha_short']    = exec(["git", "rev-parse", "--short", "HEAD"])  # human readable
     d['src_sha_msg']      = exec(["git", "show", "--no-patch", "--format=%B", d['src_sha']]);
@@ -220,6 +220,7 @@ def main() -> int:
     g = parser.add_argument_group('Niche arguments')
     g.add_argument("--user-name",  metavar='fullname', required=False, type=str, default=os.getenv('GITRB_USERNAME'), help="Author of artifact commit. Defaults to yourself.")
     g.add_argument("--user-email", metavar='address',  required=False, type=str, default=os.getenv('GITRB_EMAIL'),    help="Author's email of artifact commit. Defaults to your own.")
+    dv = 'origin'; g.add_argument("--src-remote-name", metavar='name', required=False, type=str, default=os.getenv('GITRB_SRC_REMOTE', dv), help=f"Name of src repo's remote. Defaults {dv}.")
     dv = 'False'; g.add_argument("--add-ignored",  metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_ADD_IGNORED', dv),  help=f"Add despite gitignore. Default {dv}.")
     dv = 'False'; g.add_argument("--force-branch", metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE_BRANCH', dv), help=f"Force push of branch. Default {dv}.")
     dv = 'False'; g.add_argument("--force-tag",    metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE_TAG', dv),    help=f"Force push of tag. Default {dv}.")
@@ -262,14 +263,13 @@ def main() -> int:
         shutil.rmtree(rbgit_dir)
 
     rbgit = RbGit(printer, rbgit_dir=rbgit_dir, rbgit_work_tree=nca_dir)
-
     if args.user_name:
         rbgit.cmd("config", "--local", "user.name", args.user_name)
     if args.user_email:
         rbgit.cmd("config", "--local", "user.email", args.user_email)
 
     printer.high_level(f"Making local commit of artifact {args.path} in artifact-repo at {rbgit.rbgit_dir}", file=sys.stderr)
-    d = create_artifact_commit(rbgit, args.name, args.path, args.expire, args.add_ignored)
+    d = create_artifact_commit(rbgit, args.name, args.path, args.expire, args.add_ignored, args.src_remote_name)
     if d['bin_tag_name']:
         rbgit.set_tag(tag_name=d['bin_tag_name'], tag_val=d['bin_sha_commit'])
     printer.detail(rbgit.cmd("branch", "-vv"))
