@@ -19,7 +19,7 @@ from printer import Printer
 
 # Don't change the date formats! This will break parsing
 date_fmt_git = "%a, %d %b %Y %H:%M:%S %z"  # E.g. "Thu, 27 Jul 2023 13:15:26 +0200". Git commit times, human readable
-date_fmt_expire = "%Y-%m-%d/%H.%M%z"  # E.g. "2023-07-27/13:14+0200". Used in branch-names, machine sortable
+date_fmt_expire = "%Y-%m-%d/%H.%M%z"  # E.g. "2023-07-27/13.14+0200". Used in branch-names, machine sortable
 
 printer = Printer(verbosity=2, colorize=True)
 
