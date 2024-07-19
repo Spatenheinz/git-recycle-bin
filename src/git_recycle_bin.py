@@ -1,70 +1,18 @@
 #!/usr/bin/env python3
 import os
-import re
 import sys
 import shutil
 import argparse
 import subprocess
-import mimetypes
-import urllib.parse
-from itertools import takewhile
-
-import datetime
-import dateutil.relativedelta
-from dateutil.tz import tzlocal
-import maya
 
 from rbgit import RbGit
 from printer import Printer
+from util_string import *
+from util_file import *
+from util_date import *
 
-# Don't change the date formats! This will break parsing
-date_fmt_git = "%a, %d %b %Y %H:%M:%S %z"  # E.g. "Thu, 27 Jul 2023 13:15:26 +0200". Git commit times, human readable
-date_fmt_expire = "%Y-%m-%d/%H.%M%z"  # E.g. "2023-07-27/13.14+0200". Used in branch-names, machine sortable
 
 printer = Printer(verbosity=2, colorize=True)
-
-def trim_all_lines(input_string: str) -> str:
-    """ Trim leading and trailing whitespaces from every line """
-    lines = input_string.split('\n')
-    trimmed_lines = [line.strip() for line in lines]
-    return '\n'.join(trimmed_lines)
-
-def remove_empty_lines(input_string: str) -> str:
-    """ Remove empty lines, but preserve leading and trailing whitespaces """
-    lines = input_string.split('\n')
-    non_empty_lines = [line for line in lines if line.strip()]
-    return '\n'.join(non_empty_lines)
-
-def prefix_lines(lines: str, prefix: str) -> str:
-    """ Prepend the same string to start of every line """
-    return "\n".join(f"{prefix}{line}" for line in lines.split("\n") if line)
-
-def parse_expire_date(expiry_formatted: str, prefix_discard: str = "") -> dict:
-    """ Parse a string formatted as `date_fmt_expire` with an optional prefix to discard """
-    ret = {}
-
-    re_date     = r"(?P<date>\d{4}-\d{2}-\d{2})"
-    re_time     = r"(?P<time>\d+\.\d+)"
-    re_tzoffset = r"(?:(?P<offset>[+-]\d{4}))?"
-    re_artifact = rf"{prefix_discard}{re_date}/{re_time}{re_tzoffset}"
-
-    match = re.search(re_artifact, expiry_formatted)
-    ret['date']     = match.group('date') if match else None
-    ret['time']     = match.group('time') if match else None
-    ret['tzoffset'] = match.group('offset') if match else None
-    return ret
-
-def format_timespan(dt_from, dt_to) -> str:
-    delta = dateutil.relativedelta.relativedelta(dt_to, dt_from)
-
-    if delta.days != 0:
-        delta_formatted = f'{delta.days}days {delta.hours:2}h {delta.minutes:2}m'
-    elif delta.hours != 0:
-        delta_formatted = f'{delta.hours:2}hrs {delta.minutes:2}min'
-    else:
-        delta_formatted = f'{delta.minutes:2}minutes'
-
-    return "{:>15}".format(delta_formatted)  # right-adjust
 
 
 
@@ -81,115 +29,12 @@ def extract_gerrit_change_id(commit_message: str) -> str:
     # If there is no Change-Id line, return an empty string
     return ""
 
-def string_trunc_ellipsis(maxlen: int, longstr: str) -> str:
-    if len(longstr) <= maxlen:
-        return longstr
-
-    shortstr = longstr[:maxlen]
-    if len(shortstr) == maxlen:
-        return shortstr[:(maxlen-3)] + "..."
-    else:
-        return shortstr
-
-
-def sanitize_branch_name(name: str) -> str:
-    """
-        Git branch names cannot contain: whitespace characters, ~, ^, :, [, ? or *.
-        Also they cannot start with / or -, end with ., or contain multiple consecutive /
-        Finally, they cannot be @, @{, or have two consecutive dots ..
-    """
-
-    # replace unsafe characters with _
-    sanitized_name = re.sub(r'[\s~^:\[\]?*]', '_', name)
-
-    # replace starting / or - with _
-    sanitized_name = re.sub(r'^[-/]', '_', sanitized_name)
-
-    # replace ending . with _
-    sanitized_name = re.sub(r'\.$', '_', sanitized_name)
-
-    # replace // with /
-    sanitized_name = re.sub(r'//', '/', sanitized_name)
-
-    # replace .. with .
-    sanitized_name = re.sub(r'\.\.', '.', sanitized_name)
-
-    # replace @ and @{ with _
-    if sanitized_name in ('@', '@{'):
-        sanitized_name = '_'
-
-    return sanitized_name
-
-
-def url_redact(url: str, replacement: str = 'REDACTED'):
-    """ Replace sensitive password/api-token from URL with a string """
-    parsed = urllib.parse.urlparse(url)
-
-    # If there is no password, return the original URL
-    if not parsed.password:
-        return url
-
-    # Redact the password/token
-    new_netloc = parsed.netloc.replace(parsed.password, replacement)
-
-    # Reconstruct the URL
-    redacted_url = urllib.parse.urlunparse((
-        parsed.scheme,
-        new_netloc,
-        parsed.path,
-        parsed.params,
-        parsed.query,
-        parsed.fragment
-    ))
-
-    return redacted_url
-
 
 def exec(command):
     printer.debug("Run:", command, file=sys.stderr)
     return subprocess.check_output(command, text=True).strip()
 
 
-def nca_path(pathA, pathB):
-    """ Get nearest common ancestor of two paths """
-
-    # Get absolute paths. Inputs may be relative.
-    components1 = os.path.abspath(pathA).split(os.sep)
-    components2 = os.path.abspath(pathB).split(os.sep)
-
-    # Use zip to iterate over pairs of components
-    # Stop when components differ, thanks to the use of itertools.takewhile
-    common_components = list(takewhile(lambda x: x[0]==x[1], zip(components1, components2)))
-
-    # The common path is the joined common components
-    common_path = os.sep.join([x[0] for x in common_components])
-    return common_path
-
-
-def rel_dir(pfrom, pto):
-    """ Get relative path to `pto` from `pfrom` """
-    abs_pfrom = os.path.abspath(pfrom)
-    abs_pto = os.path.abspath(pto)
-    return os.path.relpath(abs_pto, abs_pfrom)
-
-
-def parse_fuzzy_time(fuzzy_time: str):
-    dt = maya.when(fuzzy_time)
-    if dt.timezone == 'UTC':
-        dt = dt.datetime().astimezone(tzlocal())
-    return dt
-
-def date_fuzzy2expiryformat(fuzzy_date: str) -> str:
-    dt_obj = parse_fuzzy_time(fuzzy_date)
-    return datetime.datetime.strftime(dt_obj, date_fmt_expire)
-
-def date_parse_formatted(date_string: str, date_format: str):
-    return datetime.datetime.strptime(date_string, date_format)
-
-def date_formatted2unix(date_string: str, date_format: str):
-    """ E.g. `date_formatted2unix("Wed, 21 Jun 2023 14:13:31 +0200", "%a, %d %b %Y %H:%M:%S %z")` """
-    unix_time = date_parse_formatted(date_string=date_string, date_format=date_format).timestamp()
-    return unix_time
 
 
 
@@ -266,11 +111,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branc
     d['binpath'] = binpath
     d['bin_branch_expire'] = date_fuzzy2expiryformat(expire_branch)
 
-    if os.path.isfile(binpath): d['artifact_mime'] = mimetypes.guess_type(binpath)
-    elif os.path.isdir(binpath): d['artifact_mime'] = "directory"
-    elif os.path.islink(binpath): d['artifact_mime'] = "link"
-    elif os.path.ismount(binpath): d['artifact_mime'] = "mount"
-    else: d['artifact_mime'] = "unknown"
+    d['artifact_mime'] = classify_path(binpath)
 
     d['src_remote_name'] = "origin"    # TODO: Take from local branch (if not detached HEAD) tracking branch
     d['src_sha']          = exec(["git", "rev-parse", "HEAD"])  # full sha
@@ -280,12 +121,12 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branc
 
     # Author time is when the commit was first committed.
     # Author time is easily set with `git commit --date`.
-    d['src_time_author']  = exec(["git", "show", "-s", "--format=%ad", f"--date=format:{date_fmt_git}", d['src_sha']])
+    d['src_time_author']  = exec(["git", "show", "-s", "--format=%ad", f"--date=format:{DATE_FMT_GIT}", d['src_sha']])
 
     # Commiter time changes every time the commit-SHA changes, for example {rebasing, amending, ...}.
     # Commiter time can be set with $GIT_COMMITTER_DATE or `git rebase --committer-date-is-author-date`.
     # Commiter time is monotonically increasing but sampled locally, so graph could still be non-monotonic if a collaborator has a very wrong clock.
-    d['src_time_commit']  = exec(["git", "show", "-s", "--format=%cd", f"--date=format:{date_fmt_git}", d['src_sha']])
+    d['src_time_commit']  = exec(["git", "show", "-s", "--format=%cd", f"--date=format:{DATE_FMT_GIT}", d['src_sha']])
 
     d['src_branch']       = exec(["git", "rev-parse", "--abbrev-ref", "HEAD"]);
     d['src_repo_url']     = exec(["git", "config", "--get", f"remote.{d['src_remote_name']}.url"])
@@ -500,8 +341,8 @@ def push_tag(args, d, rbgit, remote_bin_name):
 
         commit_time_theirs = parse_commit_msg(remote_meta)['src-git-commit-time-commit']
         commit_time_ours = d['src_time_commit']
-        commit_time_theirs_u = date_formatted2unix(commit_time_theirs, date_fmt_git)
-        commit_time_ours_u = date_formatted2unix(commit_time_ours, date_fmt_git)
+        commit_time_theirs_u = date_formatted2unix(commit_time_theirs, DATE_FMT_GIT)
+        commit_time_ours_u = date_formatted2unix(commit_time_ours, DATE_FMT_GIT)
         printer.high_level(f"Our artifact {d['bin_sha_commit'][:8]} has src committer-time:   {commit_time_ours} ({commit_time_theirs_u})", file=sys.stderr)
         printer.high_level(f"Their artifact {remote_bin_sha_commit[:8]} has src committer-time: {commit_time_theirs} ({commit_time_ours_u})", file=sys.stderr)
 
@@ -543,7 +384,7 @@ def remote_delete_expired_branches(args, d, rbgit, remote_bin_name):
             date_time_tz['tzoffset'] = datetime.datetime.strftime(now, "%z")
 
         compliant_expire_string = f"{date_time_tz['date']}/{date_time_tz['time']}{date_time_tz['tzoffset']}"
-        expiry = date_parse_formatted(date_string=compliant_expire_string, date_format=date_fmt_expire)
+        expiry = date_parse_formatted(date_string=compliant_expire_string, date_format=DATE_FMT_EXPIRE)
         delta_formatted = format_timespan(dt_from=now, dt_to=expiry)
 
         if expiry.timestamp() > now.timestamp():
