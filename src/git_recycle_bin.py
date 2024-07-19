@@ -264,6 +264,11 @@ def main() -> int:
         printer.error("Error: `--force-tag` requires `--force-branch`")
         return 1
 
+    if args.remote == ".":
+        src_git_dir = exec(["git", "rev-parse", "--absolute-git-dir"])
+        printer.high_level(f"Will push artifact to local src-git, {src_git_dir}. Mostly used for testing.")
+        args.remote = src_git_dir
+
     # Source git's root, fully qualified path.
     # --show-toplevel: "Show the (by default, absolute) path of the top-level directory of the working tree."
     src_tree_root = exec(["git", "rev-parse", "--show-toplevel"])
@@ -293,11 +298,6 @@ def main() -> int:
     remote_bin_name = "recyclebin"
 
     if args.remote:
-        if args.remote == ".":
-            src_git_dir = exec(["git", "rev-parse", "--absolute-git-dir"])
-            printer.high_level(f"Will push artifact to local src-git, {src_git_dir}")
-            args.remote = src_git_dir
-
         rbgit.add_remote_idempotent(name=remote_bin_name, url=args.remote)
 
     if args.push:
@@ -341,7 +341,7 @@ def push_branch(args, d, rbgit, remote_bin_name):
 
 def push_tag(args, d, rbgit, remote_bin_name):
     if not d['bin_tag_name']:
-        printer.error("Error: You are in Detached HEAD, so you can't push a tag to bin-remote with name of your source branch.", file=sys.stderr)
+        printer.error("Error: You are in Detached HEAD, so you can't push 'latest' tag to bin-remote with name of your source branch.", file=sys.stderr)
         return
 
     if d['src_commits_ahead'] != "" and int(d['src_commits_ahead']) >= 1:
