@@ -114,9 +114,9 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branc
     d['artifact_mime'] = classify_path(binpath)
 
     d['src_remote_name']  = src_remote_name
-    d['src_sha']          = exec(["git", "rev-parse", "HEAD"])  # full sha
-    d['src_sha_short']    = exec(["git", "rev-parse", "--short", "HEAD"])  # human readable
-    d['src_sha_msg']      = exec(["git", "show", "--no-patch", "--format=%B", d['src_sha']]);
+    d['src_sha']          = exec(["git", "rev-parse", "HEAD"])  # Sample the full SHA once
+    d['src_sha_short']    = d['src_sha'][:10]  # Do not sample SHA again, as that would be a race
+    d['src_sha_msg']      = exec(["git", "show", "--no-patch", "--format=%B", d['src_sha']])
     d['src_sha_title']    = d['src_sha_msg'].split('\n')[0]  # title is first line of commit-msg
 
     # Author time is when the commit was first committed.
