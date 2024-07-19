@@ -254,8 +254,14 @@ def main() -> int:
         printer.error("Error: `--force-tag` requires `--force-branch`")
         return 1
 
+    # Source git's root, fully qualified path.
+    # --show-toplevel: "Show the (by default, absolute) path of the top-level directory of the working tree."
     src_tree_root = exec(["git", "rev-parse", "--show-toplevel"])
+
+    # Artifact may reside within or outside source git's root. E.g. under $GITROOT/obj/ or $GITROOT/../obj/
     nca_dir = nca_path(src_tree_root, args.path)
+
+    # Place recyclebin-git's root at a stable location, where both source git and artifact can be seen
     rbgit_dir=f"{nca_dir}/.rbgit"
 
     if args.rm_tmp and os.path.exists(rbgit_dir):
