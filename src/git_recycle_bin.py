@@ -194,12 +194,16 @@ def date_formatted2unix(date_string: str, date_format: str):
 
 
 def emit_commit_msg(d: dict):
-    commit_msg = f"""
+    commit_msg_title = f"""
         artifact: {d['src_repo']}@{d['src_sha_short']}: {d['artifact_name']} @({string_trunc_ellipsis(30, d['src_sha_title']).strip()})
+    """
 
+    commit_msg_body = """
         This is a (binary) artifact with expiry. Expiry can be changed.
         See https://gitlab.ci.demant.com/csfw/flow/git-recycle-bin#usage
+    """
 
+    commit_msg_trailers = f"""
         artifact-schema-version: 1
         artifact-name: {d['artifact_name']}
         artifact-mime-type: {d['artifact_mime']}
@@ -217,6 +221,15 @@ def emit_commit_msg(d: dict):
         src-git-commits-behind: {d['src_commits_behind'] if d['src_commits_behind'] != "" else "?"}
         {prefix_lines(prefix="src-git-status: ", lines=trim_all_lines(d['src_status'] if d['src_status'] != "" else "clean"))}
     """
+
+    commit_msg = f"""
+        {commit_msg_title}
+
+        {commit_msg_body}
+
+        {remove_empty_lines(trim_all_lines(commit_msg_trailers))}
+    """
+
     return trim_all_lines(commit_msg)
 
 
