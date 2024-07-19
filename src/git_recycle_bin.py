@@ -176,6 +176,13 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branc
         d['bin_sha_commit'] = rbgit.cmd("rev-parse", "HEAD").strip()  # We already checked-out idempotently
         printer.high_level(f"No changes for the next commit. Already at {d['bin_sha_commit']}", file=sys.stderr)
 
+    printer.high_level(f"Artifact commit: {d['bin_sha_commit']}", file=sys.stderr)
+    printer.high_level(f"Artifact branch: {d['bin_branch_name']}", file=sys.stderr)
+    # Now we have a commit, we can set a tag pointing to it
+    if d['bin_tag_name']:
+        rbgit.set_tag(tag_name=d['bin_tag_name'], tag_val=d['bin_sha_commit'])
+        printer.high_level(f"Artifact tag: {d['bin_tag_name']}", file=sys.stderr)
+
     # Fetching a commit implies fetching its whole tree too, which may be big!
     # We want light-weight access to the meta-data stored in the commit's message, so we
     # copy meta-data to a new object which can be fetched standalone - without downloading the whole tree.
@@ -185,8 +192,6 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branc
     d['bin_ref_only_metadata'] = f"refs/artifact/meta-for-commit/{d['bin_sha_commit']}"
     rbgit.cmd("update-ref", d['bin_ref_only_metadata'], d['bin_sha_only_metadata'])
 
-    printer.high_level(f"Artifact branch: {d['bin_branch_name']}", file=sys.stderr)
-    printer.high_level(f"Artifact commit: {d['bin_sha_commit']}", file=sys.stderr)
     printer.high_level(f"Artifact [meta data]-only ref: {d['bin_ref_only_metadata']}", file=sys.stderr)
     printer.high_level(f"Artifact [meta data]-only obj: {d['bin_sha_only_metadata']}", file=sys.stderr)
 
@@ -282,8 +287,6 @@ def main() -> int:
 
     printer.high_level(f"Making local commit of artifact {args.path} in artifact-repo at {rbgit.rbgit_dir}", file=sys.stderr)
     d = create_artifact_commit(rbgit, args.name, args.path, args.expire, args.add_ignored, args.src_remote_name)
-    if d['bin_tag_name']:
-        rbgit.set_tag(tag_name=d['bin_tag_name'], tag_val=d['bin_sha_commit'])
     printer.detail(rbgit.cmd("branch", "-vv"))
     printer.detail(rbgit.cmd("log", "-1", d['bin_branch_name']))
 
