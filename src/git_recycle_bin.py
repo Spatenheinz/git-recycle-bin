@@ -135,6 +135,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branc
     d['src_status']       = exec(["git", "status", "--porcelain=1", "--untracked-files=no"]);
 
     if d['src_branch'] == "HEAD":
+        # We are in detached HEAD and thus can't determine the upstream tracking branch
         d['src_branch_upstream'] = ""
         d['src_commits_ahead']   = ""
         d['src_commits_behind']  = ""
@@ -151,7 +152,11 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branc
     d['artifact_relpath_nca'] = rel_dir(pto=binpath, pfrom=d['nca_dir'])        # Relative path to artifact from nca_dir. Artifact is always within nca_dir
     d['artifact_relpath_src'] = rel_dir(pto=binpath, pfrom=d['src_tree_root'])  # Relative path to artifact from src-git-root. Artifact might be outside of source git.
 
+    # 'expire' branch ref will be deleted with '--rm-expire' argument.
+    # E.g.: 'artifact/expire/2024-07-20/14.17+0200/project.git@182db9b0696a5e9f97a5800e4866917c5465b2c6/{obj/doc/html}'
     d['bin_branch_name'] = f"artifact/expire/{d['bin_branch_expire']}/{d['src_repo']}@{d['src_sha']}/{{{d['artifact_relpath_nca']}}}"
+    # 'latest' tag ref will not expire but is overwritten to point to newer SHA.
+    # E.g.: 'artifact/latest/project.git@main/{obj/doc/html}'
     d['bin_tag_name']    = f"artifact/latest/{d['src_repo']}@{d['src_branch']}/{{{d['artifact_relpath_nca']}}}" if d['src_branch'] != "HEAD" else None
 
     d['bin_commit_msg'] = emit_commit_msg(d)
@@ -261,7 +266,8 @@ def main() -> int:
     # Artifact may reside within or outside source git's root. E.g. under $GITROOT/obj/ or $GITROOT/../obj/
     nca_dir = nca_path(src_tree_root, args.path)
 
-    # Place recyclebin-git's root at a stable location, where both source git and artifact can be seen
+    # Place recyclebin-git's root at a stable location, where both source git and artifact can be seen.
+    # Placing artifacts here allows for potential merging of artifact commits as paths are fully qualified.
     rbgit_dir=f"{nca_dir}/.rbgit"
 
     if args.rm_tmp and os.path.exists(rbgit_dir):
