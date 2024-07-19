@@ -23,14 +23,20 @@ date_fmt_expire = "%Y-%m-%d/%H.%M%z"  # E.g. "2023-07-27/13.14+0200". Used in br
 
 printer = Printer(verbosity=2, colorize=True)
 
-
-def trim_all_lines(input_string):
+def trim_all_lines(input_string: str) -> str:
+    """ Trim leading and trailing whitespaces from every line """
     lines = input_string.split('\n')
     trimmed_lines = [line.strip() for line in lines]
     return '\n'.join(trimmed_lines)
 
+def remove_empty_lines(input_string: str) -> str:
+    """ Remove empty lines, but preserve leading and trailing whitespaces """
+    lines = input_string.split('\n')
+    non_empty_lines = [line for line in lines if line.strip()]
+    return '\n'.join(non_empty_lines)
 
 def prefix_lines(lines: str, prefix: str) -> str:
+    """ Prepend the same string to start of every line """
     return "\n".join(f"{prefix}{line}" for line in lines.split("\n") if line)
 
 def parse_expire_date(expiry_formatted: str, prefix_discard: str = "") -> dict:
