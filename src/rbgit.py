@@ -50,7 +50,9 @@ class RbGit:
             self.cmd("checkout", "--orphan", branch_name)
 
     def add(self, binpath: str, force: bool = False) -> bool:
-        # TODO: Check binpath exists
+        if not os.path.exists(binpath):
+            raise RuntimeError(f"Artifact '{binpath}' does not exist!")
+
         changes = False
         if force:
             self.cmd("add", "--force", binpath)
