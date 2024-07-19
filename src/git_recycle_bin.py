@@ -230,7 +230,6 @@ def main() -> int:
     g.add_argument('-v', '--verbose', action='count', dest='verbosity', default=1, help="Increase output verbosity. Can be repeated, e.g. -vv.")
     g.add_argument('-q', '--quiet', action='store_const', dest='verbosity', const=0, help="Suppress output.")
 
-    # TODO: Unify --push and --force, as --push={yes, no, force}
     # TODO: Add --add-submodule to add src-git as a {update=none, shallow, nonrecursive} submodule in artifact-commit.
     # TODO: Add --src-note to add+push a git-note in src-repo, that we have this artifact available.
     # TODO: Add --delete-expired to delete expired branches. Unreferenced objects can then be git-gc'd remote-side.
