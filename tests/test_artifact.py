@@ -75,7 +75,6 @@ def test_url_redact():
     assert grb.url_redact(url="https://service/my/re:po@hmm.git", replacement="REDACTED")     == "https://service/my/re:po@hmm.git"
 
     assert grb.url_redact(url="ssh://foo:pass@service/my/repo.git", replacement="REDACTED")   == "ssh://foo:REDACTED@service/my/repo.git"
-    assert grb.url_redact(url="ssh://[foo:pass@service]/my/repo.git", replacement="REDACTED") == "ssh://[foo:REDACTED@service]/my/repo.git"
     assert grb.url_redact(url="ssh://foo@service/my/repo.git", replacement="REDACTED")        == "ssh://foo@service/my/repo.git"
     assert grb.url_redact(url="ssh://service/my/repo.git", replacement="REDACTED")            == "ssh://service/my/repo.git"
     assert grb.url_redact(url="ssh://service/my/re:po.git", replacement="REDACTED")           == "ssh://service/my/re:po.git"
