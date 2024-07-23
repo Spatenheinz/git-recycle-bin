@@ -1,6 +1,6 @@
 { pkgs ? (import (builtins.fetchTarball {
-  url = "https://github.com/nixos/nixpkgs/tarball/22.11";
-  sha256 = "11w3wn2yjhaa5pv20gbfbirvjq6i3m7pqrq2msf0g7cv44vijwgw";
+   url = "https://github.com/nixos/nixpkgs/tarball/24.05";
+   sha256 = "1lr1h35prqkd1mkmzriwlpvxcb34kmhc9dnr48gkm8hh089hifmx";
 }) {}) }:
 
 let
