@@ -25,23 +25,23 @@ def test_absolute_date():
     assert grb.date_fuzzy2expiryformat("Mon, 1 Feb 1994 21:21:42 GMT") == "1994-02-01/22.21+0100"
 
 def test_relative_date():
-    assert grb.date_fuzzy2expiryformat("now") == datetime.datetime.now(tzlocal()).strftime(grb.date_fmt_expire)
-    assert grb.date_fuzzy2expiryformat("today") == datetime.datetime.now(tzlocal()).strftime(grb.date_fmt_expire)
+    assert grb.date_fuzzy2expiryformat("now") == datetime.datetime.now(tzlocal()).strftime(grb.DATE_FMT_EXPIRE)
+    assert grb.date_fuzzy2expiryformat("today") == datetime.datetime.now(tzlocal()).strftime(grb.DATE_FMT_EXPIRE)
 
-    assert grb.date_fuzzy2expiryformat("tomorrow") == (datetime.datetime.now(tzlocal()) + datetime.timedelta(days=1)).strftime(grb.date_fmt_expire)
+    assert grb.date_fuzzy2expiryformat("tomorrow") == (datetime.datetime.now(tzlocal()) + datetime.timedelta(days=1)).strftime(grb.DATE_FMT_EXPIRE)
 
-    assert grb.date_fuzzy2expiryformat("now in 3 weeks") == (datetime.datetime.now(tzlocal()) + datetime.timedelta(days=21)).strftime(grb.date_fmt_expire)
-    assert grb.date_fuzzy2expiryformat("now in 3 week") == (datetime.datetime.now(tzlocal()) + datetime.timedelta(days=21)).strftime(grb.date_fmt_expire)
-    assert grb.date_fuzzy2expiryformat("now in 3weeks") == (datetime.datetime.now(tzlocal()) + datetime.timedelta(days=21)).strftime(grb.date_fmt_expire)
-    assert grb.date_fuzzy2expiryformat("in 3 weeks") == (datetime.datetime.now(tzlocal()) + datetime.timedelta(days=21)).strftime(grb.date_fmt_expire)
-    assert grb.date_fuzzy2expiryformat("in 3weeks") == (datetime.datetime.now(tzlocal()) + datetime.timedelta(days=21)).strftime(grb.date_fmt_expire)
-    assert grb.date_fuzzy2expiryformat("in 3week") == (datetime.datetime.now(tzlocal()) + datetime.timedelta(days=21)).strftime(grb.date_fmt_expire)
-    assert grb.date_fuzzy2expiryformat("in 3w") == (datetime.datetime.now(tzlocal()) + datetime.timedelta(days=21)).strftime(grb.date_fmt_expire)
+    assert grb.date_fuzzy2expiryformat("now in 3 weeks") == (datetime.datetime.now(tzlocal()) + datetime.timedelta(days=21)).strftime(grb.DATE_FMT_EXPIRE)
+    assert grb.date_fuzzy2expiryformat("now in 3 week") == (datetime.datetime.now(tzlocal()) + datetime.timedelta(days=21)).strftime(grb.DATE_FMT_EXPIRE)
+    assert grb.date_fuzzy2expiryformat("now in 3weeks") == (datetime.datetime.now(tzlocal()) + datetime.timedelta(days=21)).strftime(grb.DATE_FMT_EXPIRE)
+    assert grb.date_fuzzy2expiryformat("in 3 weeks") == (datetime.datetime.now(tzlocal()) + datetime.timedelta(days=21)).strftime(grb.DATE_FMT_EXPIRE)
+    assert grb.date_fuzzy2expiryformat("in 3weeks") == (datetime.datetime.now(tzlocal()) + datetime.timedelta(days=21)).strftime(grb.DATE_FMT_EXPIRE)
+    assert grb.date_fuzzy2expiryformat("in 3week") == (datetime.datetime.now(tzlocal()) + datetime.timedelta(days=21)).strftime(grb.DATE_FMT_EXPIRE)
+    assert grb.date_fuzzy2expiryformat("in 3w") == (datetime.datetime.now(tzlocal()) + datetime.timedelta(days=21)).strftime(grb.DATE_FMT_EXPIRE)
 
-    assert grb.date_fuzzy2expiryformat("in 30 days") == (datetime.datetime.now(tzlocal()) + datetime.timedelta(days=30)).strftime(grb.date_fmt_expire)
-    assert grb.date_fuzzy2expiryformat("in 30 day") == (datetime.datetime.now(tzlocal()) + datetime.timedelta(days=30)).strftime(grb.date_fmt_expire)
-    assert grb.date_fuzzy2expiryformat("in 30days") == (datetime.datetime.now(tzlocal()) + datetime.timedelta(days=30)).strftime(grb.date_fmt_expire)
-    assert grb.date_fuzzy2expiryformat("in 30day") == (datetime.datetime.now(tzlocal()) + datetime.timedelta(days=30)).strftime(grb.date_fmt_expire)
+    assert grb.date_fuzzy2expiryformat("in 30 days") == (datetime.datetime.now(tzlocal()) + datetime.timedelta(days=30)).strftime(grb.DATE_FMT_EXPIRE)
+    assert grb.date_fuzzy2expiryformat("in 30 day") == (datetime.datetime.now(tzlocal()) + datetime.timedelta(days=30)).strftime(grb.DATE_FMT_EXPIRE)
+    assert grb.date_fuzzy2expiryformat("in 30days") == (datetime.datetime.now(tzlocal()) + datetime.timedelta(days=30)).strftime(grb.DATE_FMT_EXPIRE)
+    assert grb.date_fuzzy2expiryformat("in 30day") == (datetime.datetime.now(tzlocal()) + datetime.timedelta(days=30)).strftime(grb.DATE_FMT_EXPIRE)
 
     assert grb.date_fuzzy2expiryformat("next month") == grb.date_fuzzy2expiryformat("now in 1 month")
 

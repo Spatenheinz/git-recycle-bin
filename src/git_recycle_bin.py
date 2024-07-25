@@ -1,64 +1,18 @@
 #!/usr/bin/env python3
 import os
-import re
 import sys
 import shutil
 import argparse
 import subprocess
-import mimetypes
-import urllib.parse
-from itertools import takewhile
-
-import datetime
-import dateutil.relativedelta
-from dateutil.tz import tzlocal
-import maya
 
 from rbgit import RbGit
 from printer import Printer
+from util_string import *
+from util_file import *
+from util_date import *
 
-# Don't change the date formats! This will break parsing
-date_fmt_git = "%a, %d %b %Y %H:%M:%S %z"  # E.g. "Thu, 27 Jul 2023 13:15:26 +0200". Git commit times, human readable
-date_fmt_expire = "%Y-%m-%d/%H.%M%z"  # E.g. "2023-07-27/13:14+0200". Used in branch-names, machine sortable
 
 printer = Printer(verbosity=2, colorize=True)
-
-
-def trim_all_lines(input_string):
-    lines = input_string.split('\n')
-    trimmed_lines = [line.strip() for line in lines]
-    return '\n'.join(trimmed_lines)
-
-
-def prefix_lines(lines: str, prefix: str) -> str:
-    return "\n".join(f"{prefix}{line}" for line in lines.split("\n") if line)
-
-def parse_expire_date(expiry_formatted: str, prefix_discard: str = "") -> dict:
-    """ Parse a string formatted as `date_fmt_expire` with an optional prefix to discard """
-    ret = {}
-
-    re_date     = r"(?P<date>\d{4}-\d{2}-\d{2})"
-    re_time     = r"(?P<time>\d+\.\d+)"
-    re_tzoffset = r"(?:(?P<offset>[+-]\d{4}))?"
-    re_artifact = rf"{prefix_discard}{re_date}/{re_time}{re_tzoffset}"
-
-    match = re.search(re_artifact, expiry_formatted)
-    ret['date']     = match.group('date') if match else None
-    ret['time']     = match.group('time') if match else None
-    ret['tzoffset'] = match.group('offset') if match else None
-    return ret
-
-def format_timespan(dt_from, dt_to) -> str:
-    delta = dateutil.relativedelta.relativedelta(dt_to, dt_from)
-
-    if delta.days != 0:
-        delta_formatted = f'{delta.days}days {delta.hours:2}h {delta.minutes:2}m'
-    elif delta.hours != 0:
-        delta_formatted = f'{delta.hours:2}hrs {delta.minutes:2}min'
-    else:
-        delta_formatted = f'{delta.minutes:2}minutes'
-
-    return "{:>15}".format(delta_formatted)  # right-adjust
 
 
 
@@ -75,125 +29,26 @@ def extract_gerrit_change_id(commit_message: str) -> str:
     # If there is no Change-Id line, return an empty string
     return ""
 
-def string_trunc_ellipsis(maxlen: int, longstr: str) -> str:
-    if len(longstr) <= maxlen:
-        return longstr
-
-    shortstr = longstr[:maxlen]
-    if len(shortstr) == maxlen:
-        return shortstr[:(maxlen-3)] + "..."
-    else:
-        return shortstr
-
-
-def sanitize_branch_name(name: str) -> str:
-    """
-        Git branch names cannot contain: whitespace characters, ~, ^, :, [, ? or *.
-        Also they cannot start with / or -, end with ., or contain multiple consecutive /
-        Finally, they cannot be @, @{, or have two consecutive dots ..
-    """
-
-    # replace unsafe characters with _
-    sanitized_name = re.sub(r'[\s~^:\[\]?*]', '_', name)
-
-    # replace starting / or - with _
-    sanitized_name = re.sub(r'^[-/]', '_', sanitized_name)
-
-    # replace ending . with _
-    sanitized_name = re.sub(r'\.$', '_', sanitized_name)
-
-    # replace // with /
-    sanitized_name = re.sub(r'//', '/', sanitized_name)
-
-    # replace .. with .
-    sanitized_name = re.sub(r'\.\.', '.', sanitized_name)
-
-    # replace @ and @{ with _
-    if sanitized_name in ('@', '@{'):
-        sanitized_name = '_'
-
-    return sanitized_name
-
-
-def url_redact(url: str, replacement: str = 'REDACTED'):
-    """ Replace sensitive password/api-token from URL with a string """
-    parsed = urllib.parse.urlparse(url)
-
-    # If there is no password, return the original URL
-    if not parsed.password:
-        return url
-
-    # Redact the password/token
-    new_netloc = parsed.netloc.replace(parsed.password, replacement)
-
-    # Reconstruct the URL
-    redacted_url = urllib.parse.urlunparse((
-        parsed.scheme,
-        new_netloc,
-        parsed.path,
-        parsed.params,
-        parsed.query,
-        parsed.fragment
-    ))
-
-    return redacted_url
-
 
 def exec(command):
     printer.debug("Run:", command, file=sys.stderr)
     return subprocess.check_output(command, text=True).strip()
 
 
-def nca_path(pathA, pathB):
-    """ Get nearest common ancestor of two paths """
-
-    # Get absolute paths. Inputs may be relative.
-    components1 = os.path.abspath(pathA).split(os.sep)
-    components2 = os.path.abspath(pathB).split(os.sep)
-
-    # Use zip to iterate over pairs of components
-    # Stop when components differ, thanks to the use of itertools.takewhile
-    common_components = list(takewhile(lambda x: x[0]==x[1], zip(components1, components2)))
-
-    # The common path is the joined common components
-    common_path = os.sep.join([x[0] for x in common_components])
-    return common_path
-
-
-def rel_dir(pfrom, pto):
-    """ Get relative path to `pto` from `pfrom` """
-    abs_pfrom = os.path.abspath(pfrom)
-    abs_pto = os.path.abspath(pto)
-    return os.path.relpath(abs_pto, abs_pfrom)
-
-
-def parse_fuzzy_time(fuzzy_time: str):
-    dt = maya.when(fuzzy_time)
-    if dt.timezone == 'UTC':
-        dt = dt.datetime().astimezone(tzlocal())
-    return dt
-
-def date_fuzzy2expiryformat(fuzzy_date: str) -> str:
-    dt_obj = parse_fuzzy_time(fuzzy_date)
-    return datetime.datetime.strftime(dt_obj, date_fmt_expire)
-
-def date_parse_formatted(date_string: str, date_format: str):
-    return datetime.datetime.strptime(date_string, date_format)
-
-def date_formatted2unix(date_string: str, date_format: str):
-    """ E.g. `date_formatted2unix("Wed, 21 Jun 2023 14:13:31 +0200", "%a, %d %b %Y %H:%M:%S %z")` """
-    unix_time = date_parse_formatted(date_string=date_string, date_format=date_format).timestamp()
-    return unix_time
 
 
 
 def emit_commit_msg(d: dict):
-    commit_msg = f"""
+    commit_msg_title = f"""
         artifact: {d['src_repo']}@{d['src_sha_short']}: {d['artifact_name']} @({string_trunc_ellipsis(30, d['src_sha_title']).strip()})
+    """
 
+    commit_msg_body = """
         This is a (binary) artifact with expiry. Expiry can be changed.
         See https://gitlab.ci.demant.com/csfw/flow/git-recycle-bin#usage
+    """
 
+    commit_msg_trailers = f"""
         artifact-schema-version: 1
         artifact-name: {d['artifact_name']}
         artifact-mime-type: {d['artifact_mime']}
@@ -211,6 +66,15 @@ def emit_commit_msg(d: dict):
         src-git-commits-behind: {d['src_commits_behind'] if d['src_commits_behind'] != "" else "?"}
         {prefix_lines(prefix="src-git-status: ", lines=trim_all_lines(d['src_status'] if d['src_status'] != "" else "clean"))}
     """
+
+    commit_msg = f"""
+        {commit_msg_title}
+
+        {commit_msg_body}
+
+        {remove_empty_lines(trim_all_lines(commit_msg_trailers))}
+    """
+
     return trim_all_lines(commit_msg)
 
 
@@ -232,7 +96,7 @@ def parse_commit_msg(commit_msg):
 
 
 
-def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branch: str, add_ignored: bool) -> str:
+def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branch: str, add_ignored: bool, src_remote_name: str) -> str:
     """ Create Artifact: A binary commit, with builtin traceability and expiry """
     if not os.path.exists(binpath):
         raise RuntimeError(f"Artifact '{binpath}' does not exist!")
@@ -247,26 +111,22 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branc
     d['binpath'] = binpath
     d['bin_branch_expire'] = date_fuzzy2expiryformat(expire_branch)
 
-    if os.path.isfile(binpath): d['artifact_mime'] = mimetypes.guess_type(binpath)
-    elif os.path.isdir(binpath): d['artifact_mime'] = "directory"
-    elif os.path.islink(binpath): d['artifact_mime'] = "link"
-    elif os.path.ismount(binpath): d['artifact_mime'] = "mount"
-    else: d['artifact_mime'] = "unknown"
+    d['artifact_mime'] = classify_path(binpath)
 
-    d['src_remote_name'] = "origin"    # TODO: Take from local branch (if not detached HEAD) tracking branch
-    d['src_sha']          = exec(["git", "rev-parse", "HEAD"])  # full sha
-    d['src_sha_short']    = exec(["git", "rev-parse", "--short", "HEAD"])  # human readable
-    d['src_sha_msg']      = exec(["git", "show", "--no-patch", "--format=%B", d['src_sha']]);
+    d['src_remote_name']  = src_remote_name
+    d['src_sha']          = exec(["git", "rev-parse", "HEAD"])  # Sample the full SHA once
+    d['src_sha_short']    = d['src_sha'][:10]  # Do not sample SHA again, as that would be a race
+    d['src_sha_msg']      = exec(["git", "show", "--no-patch", "--format=%B", d['src_sha']])
     d['src_sha_title']    = d['src_sha_msg'].split('\n')[0]  # title is first line of commit-msg
 
     # Author time is when the commit was first committed.
     # Author time is easily set with `git commit --date`.
-    d['src_time_author']  = exec(["git", "show", "-s", "--format=%ad", f"--date=format:{date_fmt_git}", d['src_sha']])
+    d['src_time_author']  = exec(["git", "show", "-s", "--format=%ad", f"--date=format:{DATE_FMT_GIT}", d['src_sha']])
 
     # Commiter time changes every time the commit-SHA changes, for example {rebasing, amending, ...}.
     # Commiter time can be set with $GIT_COMMITTER_DATE or `git rebase --committer-date-is-author-date`.
     # Commiter time is monotonically increasing but sampled locally, so graph could still be non-monotonic if a collaborator has a very wrong clock.
-    d['src_time_commit']  = exec(["git", "show", "-s", "--format=%cd", f"--date=format:{date_fmt_git}", d['src_sha']])
+    d['src_time_commit']  = exec(["git", "show", "-s", "--format=%cd", f"--date=format:{DATE_FMT_GIT}", d['src_sha']])
 
     d['src_branch']       = exec(["git", "rev-parse", "--abbrev-ref", "HEAD"]);
     d['src_repo_url']     = exec(["git", "config", "--get", f"remote.{d['src_remote_name']}.url"])
@@ -275,6 +135,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branc
     d['src_status']       = exec(["git", "status", "--porcelain=1", "--untracked-files=no"]);
 
     if d['src_branch'] == "HEAD":
+        # We are in detached HEAD and thus can't determine the upstream tracking branch
         d['src_branch_upstream'] = ""
         d['src_commits_ahead']   = ""
         d['src_commits_behind']  = ""
@@ -291,7 +152,11 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branc
     d['artifact_relpath_nca'] = rel_dir(pto=binpath, pfrom=d['nca_dir'])        # Relative path to artifact from nca_dir. Artifact is always within nca_dir
     d['artifact_relpath_src'] = rel_dir(pto=binpath, pfrom=d['src_tree_root'])  # Relative path to artifact from src-git-root. Artifact might be outside of source git.
 
+    # 'expire' branch ref will be deleted with '--rm-expire' argument.
+    # E.g.: 'artifact/expire/2024-07-20/14.17+0200/project.git@182db9b0696a5e9f97a5800e4866917c5465b2c6/{obj/doc/html}'
     d['bin_branch_name'] = f"artifact/expire/{d['bin_branch_expire']}/{d['src_repo']}@{d['src_sha']}/{{{d['artifact_relpath_nca']}}}"
+    # 'latest' tag ref will not expire but is overwritten to point to newer SHA.
+    # E.g.: 'artifact/latest/project.git@main/{obj/doc/html}'
     d['bin_tag_name']    = f"artifact/latest/{d['src_repo']}@{d['src_branch']}/{{{d['artifact_relpath_nca']}}}" if d['src_branch'] != "HEAD" else None
 
     d['bin_commit_msg'] = emit_commit_msg(d)
@@ -311,6 +176,13 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branc
         d['bin_sha_commit'] = rbgit.cmd("rev-parse", "HEAD").strip()  # We already checked-out idempotently
         printer.high_level(f"No changes for the next commit. Already at {d['bin_sha_commit']}", file=sys.stderr)
 
+    printer.high_level(f"Artifact commit: {d['bin_sha_commit']}", file=sys.stderr)
+    printer.high_level(f"Artifact branch: {d['bin_branch_name']}", file=sys.stderr)
+    # Now we have a commit, we can set a tag pointing to it
+    if d['bin_tag_name']:
+        rbgit.set_tag(tag_name=d['bin_tag_name'], tag_val=d['bin_sha_commit'])
+        printer.high_level(f"Artifact tag: {d['bin_tag_name']}", file=sys.stderr)
+
     # Fetching a commit implies fetching its whole tree too, which may be big!
     # We want light-weight access to the meta-data stored in the commit's message, so we
     # copy meta-data to a new object which can be fetched standalone - without downloading the whole tree.
@@ -320,8 +192,6 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branc
     d['bin_ref_only_metadata'] = f"refs/artifact/meta-for-commit/{d['bin_sha_commit']}"
     rbgit.cmd("update-ref", d['bin_ref_only_metadata'], d['bin_sha_only_metadata'])
 
-    printer.high_level(f"Artifact branch: {d['bin_branch_name']}", file=sys.stderr)
-    printer.high_level(f"Artifact commit: {d['bin_sha_commit']}", file=sys.stderr)
     printer.high_level(f"Artifact [meta data]-only ref: {d['bin_ref_only_metadata']}", file=sys.stderr)
     printer.high_level(f"Artifact [meta data]-only obj: {d['bin_sha_only_metadata']}", file=sys.stderr)
 
@@ -360,6 +230,7 @@ def main() -> int:
     g = parser.add_argument_group('Niche arguments')
     g.add_argument("--user-name",  metavar='fullname', required=False, type=str, default=os.getenv('GITRB_USERNAME'), help="Author of artifact commit. Defaults to yourself.")
     g.add_argument("--user-email", metavar='address',  required=False, type=str, default=os.getenv('GITRB_EMAIL'),    help="Author's email of artifact commit. Defaults to your own.")
+    dv = 'origin'; g.add_argument("--src-remote-name", metavar='name', required=False, type=str, default=os.getenv('GITRB_SRC_REMOTE', dv), help=f"Name of src repo's remote. Defaults {dv}.")
     dv = 'False'; g.add_argument("--add-ignored",  metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_ADD_IGNORED', dv),  help=f"Add despite gitignore. Default {dv}.")
     dv = 'False'; g.add_argument("--force-branch", metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE_BRANCH', dv), help=f"Force push of branch. Default {dv}.")
     dv = 'False'; g.add_argument("--force-tag",    metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE_TAG', dv),    help=f"Force push of tag. Default {dv}.")
@@ -370,7 +241,6 @@ def main() -> int:
     g.add_argument('-v', '--verbose', action='count', dest='verbosity', default=1, help="Increase output verbosity. Can be repeated, e.g. -vv.")
     g.add_argument('-q', '--quiet', action='store_const', dest='verbosity', const=0, help="Suppress output.")
 
-    # TODO: Unify --push and --force, as --push={yes, no, force}
     # TODO: Add --add-submodule to add src-git as a {update=none, shallow, nonrecursive} submodule in artifact-commit.
     # TODO: Add --src-note to add+push a git-note in src-repo, that we have this artifact available.
     # TODO: Add --delete-expired to delete expired branches. Unreferenced objects can then be git-gc'd remote-side.
@@ -394,8 +264,20 @@ def main() -> int:
         printer.error("Error: `--force-tag` requires `--force-branch`")
         return 1
 
+    if args.remote == ".":
+        src_git_dir = exec(["git", "rev-parse", "--absolute-git-dir"])
+        printer.high_level(f"Will push artifact to local src-git, {src_git_dir}. Mostly used for testing.")
+        args.remote = src_git_dir
+
+    # Source git's root, fully qualified path.
+    # --show-toplevel: "Show the (by default, absolute) path of the top-level directory of the working tree."
     src_tree_root = exec(["git", "rev-parse", "--show-toplevel"])
+
+    # Artifact may reside within or outside source git's root. E.g. under $GITROOT/obj/ or $GITROOT/../obj/
     nca_dir = nca_path(src_tree_root, args.path)
+
+    # Place recyclebin-git's root at a stable location, where both source git and artifact can be seen.
+    # Placing artifacts here allows for potential merging of artifact commits as paths are fully qualified.
     rbgit_dir=f"{nca_dir}/.rbgit"
 
     if args.rm_tmp and os.path.exists(rbgit_dir):
@@ -403,27 +285,19 @@ def main() -> int:
         shutil.rmtree(rbgit_dir)
 
     rbgit = RbGit(printer, rbgit_dir=rbgit_dir, rbgit_work_tree=nca_dir)
-
     if args.user_name:
         rbgit.cmd("config", "--local", "user.name", args.user_name)
     if args.user_email:
         rbgit.cmd("config", "--local", "user.email", args.user_email)
 
     printer.high_level(f"Making local commit of artifact {args.path} in artifact-repo at {rbgit.rbgit_dir}", file=sys.stderr)
-    d = create_artifact_commit(rbgit, args.name, args.path, args.expire, args.add_ignored)
-    if d['bin_tag_name']:
-        rbgit.set_tag(tag_name=d['bin_tag_name'], tag_val=d['bin_sha_commit'])
+    d = create_artifact_commit(rbgit, args.name, args.path, args.expire, args.add_ignored, args.src_remote_name)
     printer.detail(rbgit.cmd("branch", "-vv"))
     printer.detail(rbgit.cmd("log", "-1", d['bin_branch_name']))
 
     remote_bin_name = "recyclebin"
 
     if args.remote:
-        if args.remote == ".":
-            src_git_dir = exec(["git", "rev-parse", "--absolute-git-dir"])
-            printer.high_level(f"Will push artifact to local src-git, {src_git_dir}")
-            args.remote = src_git_dir
-
         rbgit.add_remote_idempotent(name=remote_bin_name, url=args.remote)
 
     if args.push:
@@ -467,7 +341,7 @@ def push_branch(args, d, rbgit, remote_bin_name):
 
 def push_tag(args, d, rbgit, remote_bin_name):
     if not d['bin_tag_name']:
-        printer.error("Error: You are in Detached HEAD, so you can't push a tag to bin-remote with name of your source branch.", file=sys.stderr)
+        printer.error("Error: You are in Detached HEAD, so you can't push 'latest' tag to bin-remote with name of your source branch.", file=sys.stderr)
         return
 
     if d['src_commits_ahead'] != "" and int(d['src_commits_ahead']) >= 1:
@@ -481,8 +355,8 @@ def push_tag(args, d, rbgit, remote_bin_name):
 
         commit_time_theirs = parse_commit_msg(remote_meta)['src-git-commit-time-commit']
         commit_time_ours = d['src_time_commit']
-        commit_time_theirs_u = date_formatted2unix(commit_time_theirs, date_fmt_git)
-        commit_time_ours_u = date_formatted2unix(commit_time_ours, date_fmt_git)
+        commit_time_theirs_u = date_formatted2unix(commit_time_theirs, DATE_FMT_GIT)
+        commit_time_ours_u = date_formatted2unix(commit_time_ours, DATE_FMT_GIT)
         printer.high_level(f"Our artifact {d['bin_sha_commit'][:8]} has src committer-time:   {commit_time_ours} ({commit_time_theirs_u})", file=sys.stderr)
         printer.high_level(f"Their artifact {remote_bin_sha_commit[:8]} has src committer-time: {commit_time_theirs} ({commit_time_ours_u})", file=sys.stderr)
 
@@ -524,7 +398,7 @@ def remote_delete_expired_branches(args, d, rbgit, remote_bin_name):
             date_time_tz['tzoffset'] = datetime.datetime.strftime(now, "%z")
 
         compliant_expire_string = f"{date_time_tz['date']}/{date_time_tz['time']}{date_time_tz['tzoffset']}"
-        expiry = date_parse_formatted(date_string=compliant_expire_string, date_format=date_fmt_expire)
+        expiry = date_parse_formatted(date_string=compliant_expire_string, date_format=DATE_FMT_EXPIRE)
         delta_formatted = format_timespan(dt_from=now, dt_to=expiry)
 
         if expiry.timestamp() > now.timestamp():
