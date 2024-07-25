@@ -223,9 +223,10 @@ def main() -> int:
     g.add_argument(                   "--name",   metavar='string',   required=True,  type=str, default=os.getenv('GITRB_NAME'),       help="Name to assign to the artifact. Will be sanitized.")
     g.add_argument(                   "--remote", metavar='URL',      required=False, type=str, default=os.getenv('GITRB_REMOTE'),     help="Git remote URL to push artifact to.")
     dv = 'in 30 days'; g.add_argument("--expire", metavar='fuzz',     required=False, type=str, default=os.getenv('GITRB_EXPIRE', dv), help=f"Expiry of artifact's branch. Fuzzy date. Default '{dv}'.")
-    dv = 'False'; g.add_argument("--push",       metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH', dv),     help=f"Push artifact-commit to remote. Default {dv}.")
-    dv = 'False'; g.add_argument("--push-tag",   metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH_TAG', dv), help=f"Push tag to artifact to remote. Default {dv}.")
-    dv = 'False'; g.add_argument("--rm-expired", metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_RM_EXPIRED', dv), help=f"Delete expired artifact branches. Default {dv}.")
+    dv = 'False'; g.add_argument("--push",       metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH', dv),          help=f"Push artifact-commit to remote. Default {dv}.")
+    dv = 'False'; g.add_argument("--push-tag",   metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH_TAG', dv),      help=f"Push tag to artifact to remote. Default {dv}.")
+    dv = 'False'; g.add_argument("--rm-expired", metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_RM_EXPIRED', dv),    help=f"Delete expired artifact branches. Default {dv}.")
+    dv = 'False'; g.add_argument("--flush-meta", metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_RM_FLUSH_META', dv), help=f"Delete expired meta-for-commit refs. Default {dv}.")
 
     g = parser.add_argument_group('Niche arguments')
     g.add_argument("--user-name",  metavar='fullname', required=False, type=str, default=os.getenv('GITRB_USERNAME'), help="Author of artifact commit. Defaults to yourself.")
@@ -308,6 +309,9 @@ def main() -> int:
 
     if args.rm_expired:
         remote_delete_expired_branches(args, d, rbgit, remote_bin_name)
+
+    if args.flush_meta:
+        remote_flush_meta_for_commit(args, d, rbgit, remote_bin_name)
 
     if args.rm_tmp and os.path.exists(rbgit_dir):
         printer.high_level(f"Deleting local bin repo, {rbgit_dir}, to free-up disk-space.", file=sys.stderr)
@@ -408,6 +412,39 @@ def remote_delete_expired_branches(args, d, rbgit, remote_bin_name):
         printer.high_level("Expired", delta_formatted, branch)
         rbgit.cmd("push", remote_bin_name, "--delete", branch)
 
+def remote_flush_meta_for_commit(args, d, rbgit, remote_bin_name):
+    """
+        Every artifact has traceability metadata in the commit message. However we can not fetch the commit
+        message without fetching the whole artifact too. Hence we have meta-for-commit refs, which point to
+        blobs of only metadata. This way we can obtain metadata without downloading potentially big artifacts.
+
+        The artifacts are kept clean either by their built-in expiry-dates or by whoever creating the artifact
+        maintaining it, but there is no hook to clean the corresponding meta-for-commit ref.
+
+        This subroutine will scan all existing meta-for-commit references and determine if an artifact is still
+        available. If not, the metadata commit will be removed.
+    """
+    def commit_exists(commit, heads, tags):
+        for line in heads:
+            if commit in line:
+                return True
+
+        for line in tags:
+            if commit in line:
+                return True
+
+        return False
+
+    meta_set = rbgit.cmd("ls-remote", "--refs", remote_bin_name, f"refs/artifact/meta-for-commit/*").splitlines()
+    heads    = rbgit.cmd("ls-remote", "--heads", remote_bin_name, f"refs/heads/*").splitlines()
+    tags     = rbgit.cmd("ls-remote", "--tags", remote_bin_name, f"refs/tags/*").splitlines()
+
+    for line in meta_set:
+        commit = line.split("refs/artifact/meta-for-commit/")[1]
+        if commit:
+            if not commit_exists(commit, heads, tags):
+                branch = "refs/artifact/meta-for-commit/" + commit
+                rbgit.cmd("push", remote_bin_name, "--delete", branch)
 
 if __name__ == "__main__":
     ret = main()

@@ -62,7 +62,7 @@ demo3:
         --user-name "foo" --user-email "a@b"
     git branch -vv
     sleep 3
-    git_recycle_bin.py --rm-expired --quiet \
+    git_recycle_bin.py --rm-expired --quiet --flush-meta \
         --path . \
         --name "demo 3" \
         --remote . \
@@ -78,7 +78,7 @@ demo4:
         --expire "10 minutes ago" \
         --user-name "foo" --user-email "a@b"
     git branch -vv
-    git_recycle_bin.py --rm-expired -vv \
+    git_recycle_bin.py --rm-expired -vv --flush-meta \
         --path . \
         --name "demo 4" \
         --remote . \
