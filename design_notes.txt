@@ -87,3 +87,77 @@ Tag wisdom:
     - All tags live in the same global flat namespace.
     - Can't clone directly from tag. Only branches can be cloned directly.
 
+-------------
+
+Implementing download.
+
+    We sit in SRC_REPO on a SRC_SHA commit.
+    To discover available artifacts, we can:
+        a) Run from within SRC_REPO:
+           $ git_recycle_bin --list blah --bin-remote $BIN_REMOTE --src-sha $SRC_SHA   # ask server-side bin repo
+
+           OK, but this requires us to know the URI of the bin remote.
+           It is likely that different kinds of artifacts may be pushed to different remotes. E.g. HTML vs ELF.
+           I.e. this is not discoverable.
+
+        b) Look for avilable git notes.
+           Run from within SRC_REPO:
+           $ git fetch origin "refs/notes/*:refs/notes/*"
+
+           A note binds to the SRC_SHA.
+           Many "channels" of notes can exist - because notes have their own branch, DAG and history.
+           One such "channel" branch can inform about artifacts.
+           The artifact channel would live under a refspec such as:
+            refs/notes/artifact/<TARGET>                        # OK. Simple. Filterable by target name.
+            refs/notes/artifact/<BIN_REMOTE>/<TARGET>           # OK. Segmented, filterable. Perhaps a BIN_REMOTE holds HTML, others ELF.
+            refs/notes/artifact/<BIN_REMOTE>                    # HMM. Spammy? As different artifacts would race to enter the git note and thus need sort_uniq rebase.
+            refs/notes/artifact/<BIN_REMOTE>/<TARGET>/<DATE>    # BAD. Pollution: This would give too many refs over time as everything will be unique.
+            refs/notes/artifact/<BUILD_HOST>/<TARGET>           # BAD. Why only fetch from one build host? Hosts come and go, hostname still doesn't capture buildenv.
+
+          It makes sense to duplicate information in note refspec and the notes' contents - this allows change of either in the future.
+
+          With notes fetched, a note binds to SRC_SHA and contains text.
+          The text will be sorted lines of Human JSON, such as:
+            {date:2023-07-27/13.14+0200, sha:abcdef1234567890, target:fwbase-hi2, ttl:30d, remote:firmware.bin}
+            {date:2023-07-27/13.14+0200, sha:0987654321fedcba, target:user-manual, ttl:90d, remote:docs.html}
+          In more general, the format:
+            {date:<BIN_SHA_COMMIT_DATE>, sha:<BIN_SHA>, target:<TARGET>, ttl:<TTL>, remote:<BIN_REMOTE>}
+
+          Because humans are also expected to look at these notes, the fields are ordered.
+          Fields are ordered by a pattern of:
+            [Sortable fixed-width fundamental-info is more eye-pleasing] [Variable payload info] [Repetitive low information density]
+
+    Now that we can list server-side artifacts, we can download and place one.
+    What if there is already a {older,newer} artifact?
+    If there is no artifact already,
+
+    We are in SRC repo on HEAD SHA.
+    We can build on HEAD ABBA, then checkout some completely other commit BABE - now our local binary is not related to BABE-source.
+    Build-system will realize that binary (artifact from ABBA-source) is not derived from BABE, and rebuild.
+
+        server-side-has-for-HEAD:yes  workspace-binary:none     Just download the artifact, skip build
+        server-side-has-for-HEAD:yes  workspace-binary:current  Just download the artifact, skip build. Can we be idempotent and avoid the download?
+        server-side-has-for-HEAD:yes  workspace-binary:older    Just download the artifact, skip build. Must align to HEAD
+        server-side-has-for-HEAD:yes  workspace-binary:newer    Just download the artifact, skip build. Must align to HEAD
+
+        server-side-has-for-HEAD:no   workspace-binary:none     Just build. Will be a full first build.
+        server-side-has-for-HEAD:no   workspace-binary:current  Just build. May be sparse rebuild.
+        server-side-has-for-HEAD:no   workspace-binary:older    Just build. May be sparse rebuild.
+        server-side-has-for-HEAD:no   workspace-binary:newer    Just build. May be sparse rebuild.
+
+
+    * If src is dirty, give up. We can't relate dirty-HEAD with server-side binary artifact. Just build.
+    * If src is clean, try download the server-side binary for the current HEAD.
+        - available:   Fetch+overwrite always (TODO: Can we make this idempotent?). Skip build.
+
+        - unavailable: Just build.
+                       (Post-build invocation of git-recycle-bin to publish the built artifact to make it generally available - though only CI systems should publish)
+
+    (Do we need state for idempotency? Treeish in rbgit, or placing a metadata file next to.)
+
+
+How do we download and populate?
+
+   $ rbgit reset BIN_SHA --hard
+   - This will mutate only the files that are in treeish of the BIN_SHA orhan commit, leaving other files unchanged.
+   - This can be done in sequence for each artifact in turn.
