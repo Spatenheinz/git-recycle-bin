@@ -384,7 +384,6 @@ def remote_delete_expired_branches(args, d, rbgit, remote_bin_name):
         Delete refs of expired branches on remote. Artifacts may still be kept alive by other refs, e.g. by latest-tag.
         Reclaiming disk-space on remote, requires running `git gc` or its equivalent -- _Housekeeping_ on GitLab.
         See https://docs.gitlab.com/ee/administration/housekeeping.html
-        TODO: Library to RPC trigger housekeeping/GC for {gitlab, github, gittea, gerrit, gitetcetc}?
     """
     branch_prefix = "artifact/expire/"
     lines = rbgit.cmd("ls-remote", "--heads", remote_bin_name, f"refs/heads/{branch_prefix}*").splitlines()
