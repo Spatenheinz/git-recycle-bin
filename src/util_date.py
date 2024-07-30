@@ -6,7 +6,9 @@ import maya
 
 # Don't change the date formats! This will break parsing
 DATE_FMT_GIT = "%a, %d %b %Y %H:%M:%S %z"  # E.g. "Thu, 27 Jul 2023 13:15:26 +0200". Git commit times, human readable
-DATE_FMT_EXPIRE = "%Y-%m-%d/%H.%M%z"  # E.g. "2023-07-27/13.14+0200". Used in branch-names, machine sortable
+DATE_FMT_EXPIRE_YMD = "%Y-%m-%d"  # E.g. "2023-07-27". Machine sortable. Used in notes refspec
+DATE_FMT_EXPIRE_HMz = "%H.%M%z"   # E.g. "13.14+0200". Machine sortable
+DATE_FMT_EXPIRE = f"{DATE_FMT_EXPIRE_YMD}/{DATE_FMT_EXPIRE_HMz}"  # E.g. "2023-07-27/13.14+0200". Used in branch-names, machine sortable
 
 def parse_fuzzy_time(fuzzy_time: str) -> datetime:
     dt = maya.when(fuzzy_time)
