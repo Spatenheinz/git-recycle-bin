@@ -231,7 +231,7 @@ def main() -> int:
     g = parser.add_argument_group('Niche arguments')
     g.add_argument("--user-name",  metavar='fullname', required=False, type=str, default=os.getenv('GITRB_USERNAME'), help="Author of artifact commit. Defaults to yourself.")
     g.add_argument("--user-email", metavar='address',  required=False, type=str, default=os.getenv('GITRB_EMAIL'),    help="Author's email of artifact commit. Defaults to your own.")
-    dv = 'origin'; g.add_argument("--src-remote-name", metavar='name', required=False, type=str, default=os.getenv('GITRB_SRC_REMOTE', dv), help=f"Name of src repo's remote. Defaults {dv}.")
+    dv = 'origin'; g.add_argument("--src-remote-name", metavar='name', required=False, type=str, default=os.getenv('GITRB_SRC_REMOTE', dv), help=f"Name of src repo's remote. Default {dv}.")
     dv = 'False'; g.add_argument("--add-ignored",  metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_ADD_IGNORED', dv),  help=f"Add despite gitignore. Default {dv}.")
     dv = 'False'; g.add_argument("--force-branch", metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE_BRANCH', dv), help=f"Force push of branch. Default {dv}.")
     dv = 'False'; g.add_argument("--force-tag",    metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE_TAG', dv),    help=f"Force push of tag. Default {dv}.")
@@ -320,9 +320,13 @@ def main() -> int:
 
 
 def push_branch(args, d, rbgit, remote_bin_name):
-    # Push branch first, then meta-data (we don't want meta-data to be pushed if branch push fails).
-    # Branch might exist already upstream.
-    # Pushing may take long, so always show stdout and stderr without capture.
+    """
+        Push branch to binary remote.
+
+        Push branch first, then meta-data (we don't want meta-data to be pushed if branch push fails).
+        Branch might exist already upstream.
+        Pushing may take long, so always show stdout and stderr without capture.
+    """
     printer.high_level(f"Pushing to remote artifact-repo: Artifact data on branch {d['bin_branch_name']}", file=sys.stderr)
     if args.force_branch:
         rbgit.cmd("push", "--force", remote_bin_name, d['bin_branch_name'], capture_output=False)
@@ -343,6 +347,9 @@ def push_branch(args, d, rbgit, remote_bin_name):
 
 
 def push_tag(args, d, rbgit, remote_bin_name):
+    """
+        Push tag to binary remote.
+    """
     if not d['bin_tag_name']:
         printer.error("Error: You are in Detached HEAD, so you can't push 'latest' tag to bin-remote with name of your source branch.", file=sys.stderr)
         return
@@ -409,6 +416,7 @@ def remote_delete_expired_branches(args, d, rbgit, remote_bin_name):
 
         printer.high_level("Expired", delta_formatted, branch)
         rbgit.cmd("push", remote_bin_name, "--delete", branch)
+
 
 def remote_flush_meta_for_commit(args, d, rbgit, remote_bin_name):
     """
