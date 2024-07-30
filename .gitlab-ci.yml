@@ -61,3 +61,17 @@ demo5:
   stage: demos
   script:
     - nix-shell --pure --run "just demo5"
+
+demo6_note:
+  stage: demos
+  script:
+    # Ensure we got origin remote via ssh -- avoid trouble/leaks with https tokens
+    - git remote -vv
+    - aux/git_add_ssh_remote.sh origin  # Create new 'origin_ssh'. 'origin' may be https
+    - git remote remove origin
+    - git remote rename origin_ssh origin
+    - git remote -vv
+
+    # This will actually push a note to src remote, so it is not local-only!
+    # Not --pure so as to use host system's ssh client
+    - nix-shell --run "just demo6_note"
