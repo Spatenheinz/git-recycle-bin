@@ -27,6 +27,10 @@ def string_trunc_ellipsis(maxlen: int, longstr: str) -> str:
     else:
         return shortstr
 
+def sanitize_slashes(name: str) -> str:
+    # replace / with _
+    return re.sub(r'/', '_', name)
+
 def sanitize_branch_name(name: str) -> str:
     """
         Git branch names cannot contain: whitespace characters, ~, ^, :, [, ? or *.
