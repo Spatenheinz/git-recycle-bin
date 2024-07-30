@@ -244,7 +244,6 @@ def main() -> int:
 
     # TODO: Add --add-submodule to add src-git as a {update=none, shallow, nonrecursive} submodule in artifact-commit.
     # TODO: Add --src-note to add+push a git-note in src-repo, that we have this artifact available.
-    # TODO: Add --delete-expired to delete expired branches. Unreferenced objects can then be git-gc'd remote-side.
 
     args = parser.parse_args()
     printer.verbosity = args.verbosity
