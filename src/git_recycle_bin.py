@@ -3,7 +3,6 @@ import os
 import sys
 import json
 import shutil
-import argparse
 import subprocess
 from collections import OrderedDict
 
@@ -13,10 +12,10 @@ from util_string import *
 from util_file import *
 from util_date import *
 from util_sysinfo import *
+from parser import *
 
 
 printer = Printer(verbosity=2, colorize=True)
-
 
 
 def extract_gerrit_change_id(commit_message: str) -> str:
@@ -204,55 +203,10 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branc
 
     return d
 
-
-
-
-def str2bool(v):
-    if isinstance(v, bool):
-       return v
-    if v.lower() in ('yes', 'true', 't', 'y', '1'):
-        return True
-    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
-        return False
-    else:
-        raise argparse.ArgumentTypeError('Boolean value expected.')
-
-
 def main() -> int:
-    class CustomHelpFormatter(argparse.HelpFormatter):
-        def __init__(self, prog):
-            super().__init__(prog, indent_increment=2, max_help_position=30)
-
-    parser = argparse.ArgumentParser(description="Create and push artifacts in git - with expiry and traceability.", formatter_class=CustomHelpFormatter)
-
-    g = parser.add_argument_group('Typical arguments')
-    g.add_argument(                   "--path",   metavar='file|dir', required=True,  type=str, default=os.getenv('GITRB_PATH'),       help="Path to artifact in src-repo. Directory or file.")
-    g.add_argument(                   "--name",   metavar='string',   required=True,  type=str, default=os.getenv('GITRB_NAME'),       help="Name to assign to the artifact. Will be sanitized.")
-    g.add_argument(                   "--remote", metavar='URL',      required=False, type=str, default=os.getenv('GITRB_REMOTE'),     help="Git remote URL to push artifact to.")
-    dv = 'in 30 days'; g.add_argument("--expire", metavar='fuzz',     required=False, type=str, default=os.getenv('GITRB_EXPIRE', dv), help=f"Expiry of artifact's branch. Fuzzy date. Default '{dv}'.")
-    dv = 'False'; g.add_argument("--push",       metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH', dv),          help=f"Push artifact-commit to bin remote. Default {dv}.")
-    dv = 'False'; g.add_argument("--push-tag",   metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH_TAG', dv),      help=f"Push tag to artifact to bin remote. Default {dv}.")
-    dv = 'False'; g.add_argument("--push-note",  metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH_NOTE', dv),     help=f"Push note to src remote. Default {dv}.")
-    dv = 'False'; g.add_argument("--rm-expired", metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_RM_EXPIRED', dv),    help=f"Delete expired artifact branches. Default {dv}.")
-    dv = 'False'; g.add_argument("--flush-meta", metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_RM_FLUSH_META', dv), help=f"Delete expired meta-for-commit refs. Default {dv}.")
-
-    g = parser.add_argument_group('Niche arguments')
-    g.add_argument("--user-name",  metavar='fullname', required=False, type=str, default=os.getenv('GITRB_USERNAME'), help="Author of artifact commit. Defaults to yourself.")
-    g.add_argument("--user-email", metavar='address',  required=False, type=str, default=os.getenv('GITRB_EMAIL'),    help="Author's email of artifact commit. Defaults to your own.")
-    dv = 'origin'; g.add_argument("--src-remote-name", metavar='name', required=False, type=str, default=os.getenv('GITRB_SRC_REMOTE', dv), help=f"Name of src repo's remote. Default {dv}.")
-    dv = 'False'; g.add_argument("--add-ignored",  metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_ADD_IGNORED', dv),  help=f"Add despite gitignore. Default {dv}.")
-    dv = 'False'; g.add_argument("--force-branch", metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE_BRANCH', dv), help=f"Force push of branch. Default {dv}.")
-    dv = 'False'; g.add_argument("--force-tag",    metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE_TAG', dv),    help=f"Force push of tag. Default {dv}.")
-    dv = 'True';  g.add_argument("--rm-tmp",       metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_RM_TMP', dv),       help=f"Remove local bin-repo. Default {dv}.")
-
-    g = parser.add_argument_group('Terminal output style')
-    dv = 'True'; g.add_argument("--color", metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_COLOR', dv), help=f"Colorized output. Default {dv}.")
-    g.add_argument('-v', '--verbose', action='count', dest='verbosity', default=1, help="Increase output verbosity. Can be repeated, e.g. -vv.")
-    g.add_argument('-q', '--quiet', action='store_const', dest='verbosity', const=0, help="Suppress output.")
-
     # TODO: Add --add-submodule to add src-git as a {update=none, shallow, nonrecursive} submodule in artifact-commit.
 
-    args = parser.parse_args()
+    args = parse_args()
     printer.verbosity = args.verbosity
     printer.colorize = args.color
 
@@ -261,18 +215,17 @@ def main() -> int:
         printer.debug(f"  '{arg}': '{getattr(args, arg)}'")
 
     # Sanity-check
-    if args.push and not args.remote:
-        printer.error("Error: `--push` requires `--remote`")
-        return 1
-    if args.push_tag and not args.push:
-        printer.error("Error: `--push-tag` requires `--push`")
-        return 1
     if args.force_tag and not args.force_branch:
         printer.error("Error: `--force-tag` requires `--force-branch`")
         return 1
     if args.push_note and not args.push:
         printer.error("Error: `--push-note` requires `--push`")
         return 1
+
+    try:
+        args.remote
+    except AttributeError:
+        printer.error("Error: command is missing a remote argument, contact maintainers")
 
     if args.remote == ".":
         src_git_dir = exec(["git", "rev-parse", "--absolute-git-dir"])
@@ -283,8 +236,14 @@ def main() -> int:
     # --show-toplevel: "Show the (by default, absolute) path of the top-level directory of the working tree."
     src_tree_root = exec(["git", "rev-parse", "--show-toplevel"])
 
+    # only some commands require path. All other cases, the git root suffices.
+    try:
+        path = args.path
+    except AttributeError:
+        path = src_tree_root
+
     # Artifact may reside within or outside source git's root. E.g. under $GITROOT/obj/ or $GITROOT/../obj/
-    nca_dir = nca_path(src_tree_root, args.path)
+    nca_dir = nca_path(src_tree_root, path)
 
     # Place recyclebin-git's root at a stable location, where both source git and artifact can be seen.
     # Placing artifacts here allows for potential merging of artifact commits as paths are fully qualified.
@@ -300,36 +259,43 @@ def main() -> int:
     if args.user_email:
         rbgit.cmd("config", "--local", "user.email", args.user_email)
 
-    printer.high_level(f"Making local commit of artifact {args.path} in artifact-repo at {rbgit.rbgit_dir}", file=sys.stderr)
-    d = create_artifact_commit(rbgit, args.name, args.path, args.expire, args.add_ignored, args.src_remote_name)
-    printer.detail(rbgit.cmd("branch", "-vv"))
-    printer.detail(rbgit.cmd("log", "-1", d['bin_branch_name']))
-
     remote_bin_name = "recyclebin"
 
-    if args.remote:
-        rbgit.add_remote_idempotent(name=remote_bin_name, url=args.remote)
+    commands = {
+        "push": lambda: push_command(args, rbgit, remote_bin_name, path),
+        "clean": lambda: clean_command(rbgit, remote_bin_name)
+    }
 
-    if args.push:
-        push_branch(args, d, rbgit, remote_bin_name)
-
-    if args.push_tag:
-        push_tag(args, d, rbgit, remote_bin_name)
-
-    if args.push_note:
-        note_append_push(args, d)
-
-    if args.rm_expired:
-        remote_delete_expired_branches(args, d, rbgit, remote_bin_name)
-
-    if args.flush_meta:
-        remote_flush_meta_for_commit(args, d, rbgit, remote_bin_name)
+    run = commands[args.command]
+    rbgit.add_remote_idempotent(name=remote_bin_name, url=args.remote)
+    run()
 
     if args.rm_tmp and os.path.exists(rbgit_dir):
         printer.high_level(f"Deleting local bin repo, {rbgit_dir}, to free-up disk-space.", file=sys.stderr)
         shutil.rmtree(rbgit_dir, ignore_errors=True)
 
     return 0
+
+def clean_command(rbgit, remote_bin_name):
+    remote_delete_expired_branches(rbgit, remote_bin_name)
+    remote_flush_meta_for_commit(rbgit, remote_bin_name)
+
+def push_command(args, rbgit, remote_bin_name, path):
+    printer.high_level(f"Making local commit of artifact {path} in artifact-repo at {rbgit.rbgit_dir}", file=sys.stderr)
+    d = create_artifact_commit(rbgit, args.name, path, args.expire, args.add_ignored, args.src_remote_name)
+    printer.detail(rbgit.cmd("branch", "-vv"))
+    printer.detail(rbgit.cmd("log", "-1", d['bin_branch_name']))
+
+    rbgit.add_remote_idempotent(name=remote_bin_name, url=args.remote)
+    push_branch(args, d, rbgit, remote_bin_name)
+    if args.tag:
+        push_tag(args, d, rbgit, remote_bin_name)
+    if args.push_note:
+        note_append_push(args, d)
+    if args.rm_expired:
+        remote_delete_expired_branches(rbgit, remote_bin_name)
+    if args.flush_meta:
+        remote_flush_meta_for_commit(rbgit, remote_bin_name)
 
 
 def push_branch(args, d, rbgit, remote_bin_name):
@@ -398,7 +364,7 @@ def push_tag(args, d, rbgit, remote_bin_name):
         rbgit.cmd("push", remote_bin_name, d['bin_tag_name'])  # Create new tag; push with force is not necessary
 
 
-def remote_delete_expired_branches(args, d, rbgit, remote_bin_name):
+def remote_delete_expired_branches(rbgit, remote_bin_name):
     """
         Delete refs of expired branches on remote. Artifacts may still be kept alive by other refs, e.g. by latest-tag.
         Reclaiming disk-space on remote, requires running `git gc` or its equivalent -- _Housekeeping_ on GitLab.
@@ -430,8 +396,7 @@ def remote_delete_expired_branches(args, d, rbgit, remote_bin_name):
         printer.high_level("Expired", delta_formatted, branch)
         rbgit.cmd("push", remote_bin_name, "--delete", branch)
 
-
-def remote_flush_meta_for_commit(args, d, rbgit, remote_bin_name):
+def remote_flush_meta_for_commit(rbgit, remote_bin_name):
     """
         Every artifact has traceability metadata in the commit message. However we can not fetch the commit
         message without fetching the whole artifact too. Hence we have meta-for-commit refs, which point to

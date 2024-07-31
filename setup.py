@@ -14,6 +14,7 @@ setup(name='git-recycle-bin',
             "src/util_file.py",
             "src/util_date.py",
             "src/util_sysinfo.py",
+            "src/parser.py",
       ],
      )
 
