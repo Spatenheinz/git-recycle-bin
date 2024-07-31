@@ -102,7 +102,7 @@ def parse_commit_msg(commit_msg):
 
 
 
-def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branch: str, add_ignored: bool, src_remote_name: str) -> str:
+def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branch: str, add_ignored: bool, src_remote_name: str) -> dict[str, str]:
     """ Create Artifact: A binary commit, with builtin traceability and expiry """
     if not os.path.exists(binpath):
         raise RuntimeError(f"Artifact '{binpath}' does not exist!")
@@ -196,7 +196,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branc
     # NOTE: This meta-data could be augmented with convenient/unstable information - this would not compromise the commit-SHA's stability.
     d['bin_sha_only_metadata'] = rbgit.cmd("hash-object", "--stdin", "-w", input=d['bin_commit_msg']).strip()
     # Create new ref for the artifact-commit, pointing to [Meta data]-only.
-    d['bin_ref_only_metadata'] = f"refs/artifact/meta-for-commit/{d['bin_sha_commit']}"
+    d['bin_ref_only_metadata'] = f"refs/artifact/meta-for-commit/{d['src_sha']}/{d['bin_sha_commit']}"
     rbgit.cmd("update-ref", d['bin_ref_only_metadata'], d['bin_sha_only_metadata'])
 
     printer.high_level(f"Artifact [meta data]-only ref: {d['bin_ref_only_metadata']}", file=sys.stderr)
