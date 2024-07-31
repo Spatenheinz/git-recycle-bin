@@ -100,3 +100,13 @@ demo5:
         --remote . \
         --user-name "foo" --user-email "a@b"
     git branch -vv
+
+# Demonstrate pushing git note to src repo
+demo6_note:
+    git_recycle_bin.py --rm-expired --push --push-note -vv \
+        --path . \
+        --name "demo 6 note" \
+        --remote . \
+        --expire "in 10 seconds" \
+        --user-name "foo" --user-email "a@b"
+    git log -1 --notes="notes/artifact/*" | nl -ba

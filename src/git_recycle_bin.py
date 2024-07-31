@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 import os
 import sys
+import json
 import shutil
 import argparse
 import subprocess
+from collections import OrderedDict
 
 from rbgit import RbGit
 from printer import Printer
 from util_string import *
 from util_file import *
 from util_date import *
+from util_sysinfo import *
 
 
 printer = Printer(verbosity=2, colorize=True)
@@ -30,10 +33,13 @@ def extract_gerrit_change_id(commit_message: str) -> str:
     return ""
 
 
-def exec(command):
+def exec(command, env={}):
     printer.debug("Run:", command, file=sys.stderr)
-    return subprocess.check_output(command, text=True).strip()
+    return subprocess.check_output(command, env=os.environ|env, text=True).strip()
 
+def exec_nostderr(command, env={}):
+    printer.debug("Run:", command, file=sys.stderr)
+    return subprocess.check_output(command, env=os.environ|env, text=True, stderr=subprocess.DEVNULL).strip()
 
 
 
@@ -109,7 +115,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branc
     d = {}
     d['artifact_name'] = artifact_name
     d['binpath'] = binpath
-    d['bin_branch_expire'] = date_fuzzy2expiryformat(expire_branch)
+    d['bin_branch_expire'] = date_fuzzy2expiryformat(expire_branch)  # also used by --push-note
 
     d['artifact_mime'] = classify_path(binpath)
 
@@ -128,11 +134,11 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branc
     # Commiter time is monotonically increasing but sampled locally, so graph could still be non-monotonic if a collaborator has a very wrong clock.
     d['src_time_commit']  = exec(["git", "show", "-s", "--format=%cd", f"--date=format:{DATE_FMT_GIT}", d['src_sha']])
 
-    d['src_branch']       = exec(["git", "rev-parse", "--abbrev-ref", "HEAD"]);
+    d['src_branch']       = exec(["git", "rev-parse", "--abbrev-ref", "HEAD"])
     d['src_repo_url']     = exec(["git", "config", "--get", f"remote.{d['src_remote_name']}.url"])
     d['src_repo']         = os.path.basename(d['src_repo_url'])
     d['src_tree_root']    = exec(["git", "rev-parse", "--show-toplevel"])
-    d['src_status']       = exec(["git", "status", "--porcelain=1", "--untracked-files=no"]);
+    d['src_status']       = exec(["git", "status", "--porcelain=1", "--untracked-files=no"])
 
     if d['src_branch'] == "HEAD":
         # We are in detached HEAD and thus can't determine the upstream tracking branch
@@ -175,6 +181,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branc
     else:
         d['bin_sha_commit'] = rbgit.cmd("rev-parse", "HEAD").strip()  # We already checked-out idempotently
         printer.high_level(f"No changes for the next commit. Already at {d['bin_sha_commit']}", file=sys.stderr)
+    d['bin_time_commit'] = rbgit.cmd("show", "-s", "--format=%cd", f"--date=format:{DATE_FMT_EXPIRE}", d['bin_sha_commit']).strip()
 
     printer.high_level(f"Artifact commit: {d['bin_sha_commit']}", file=sys.stderr)
     printer.high_level(f"Artifact branch: {d['bin_branch_name']}", file=sys.stderr)
@@ -223,15 +230,16 @@ def main() -> int:
     g.add_argument(                   "--name",   metavar='string',   required=True,  type=str, default=os.getenv('GITRB_NAME'),       help="Name to assign to the artifact. Will be sanitized.")
     g.add_argument(                   "--remote", metavar='URL',      required=False, type=str, default=os.getenv('GITRB_REMOTE'),     help="Git remote URL to push artifact to.")
     dv = 'in 30 days'; g.add_argument("--expire", metavar='fuzz',     required=False, type=str, default=os.getenv('GITRB_EXPIRE', dv), help=f"Expiry of artifact's branch. Fuzzy date. Default '{dv}'.")
-    dv = 'False'; g.add_argument("--push",       metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH', dv),          help=f"Push artifact-commit to remote. Default {dv}.")
-    dv = 'False'; g.add_argument("--push-tag",   metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH_TAG', dv),      help=f"Push tag to artifact to remote. Default {dv}.")
+    dv = 'False'; g.add_argument("--push",       metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH', dv),          help=f"Push artifact-commit to bin remote. Default {dv}.")
+    dv = 'False'; g.add_argument("--push-tag",   metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH_TAG', dv),      help=f"Push tag to artifact to bin remote. Default {dv}.")
+    dv = 'False'; g.add_argument("--push-note",  metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_PUSH_NOTE', dv),     help=f"Push note to src remote. Default {dv}.")
     dv = 'False'; g.add_argument("--rm-expired", metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_RM_EXPIRED', dv),    help=f"Delete expired artifact branches. Default {dv}.")
     dv = 'False'; g.add_argument("--flush-meta", metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_RM_FLUSH_META', dv), help=f"Delete expired meta-for-commit refs. Default {dv}.")
 
     g = parser.add_argument_group('Niche arguments')
     g.add_argument("--user-name",  metavar='fullname', required=False, type=str, default=os.getenv('GITRB_USERNAME'), help="Author of artifact commit. Defaults to yourself.")
     g.add_argument("--user-email", metavar='address',  required=False, type=str, default=os.getenv('GITRB_EMAIL'),    help="Author's email of artifact commit. Defaults to your own.")
-    dv = 'origin'; g.add_argument("--src-remote-name", metavar='name', required=False, type=str, default=os.getenv('GITRB_SRC_REMOTE', dv), help=f"Name of src repo's remote. Defaults {dv}.")
+    dv = 'origin'; g.add_argument("--src-remote-name", metavar='name', required=False, type=str, default=os.getenv('GITRB_SRC_REMOTE', dv), help=f"Name of src repo's remote. Default {dv}.")
     dv = 'False'; g.add_argument("--add-ignored",  metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_ADD_IGNORED', dv),  help=f"Add despite gitignore. Default {dv}.")
     dv = 'False'; g.add_argument("--force-branch", metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE_BRANCH', dv), help=f"Force push of branch. Default {dv}.")
     dv = 'False'; g.add_argument("--force-tag",    metavar='bool', type=str2bool, nargs='?', const=True, default=os.getenv('GITRB_FORCE_TAG', dv),    help=f"Force push of tag. Default {dv}.")
@@ -243,8 +251,6 @@ def main() -> int:
     g.add_argument('-q', '--quiet', action='store_const', dest='verbosity', const=0, help="Suppress output.")
 
     # TODO: Add --add-submodule to add src-git as a {update=none, shallow, nonrecursive} submodule in artifact-commit.
-    # TODO: Add --src-note to add+push a git-note in src-repo, that we have this artifact available.
-    # TODO: Add --delete-expired to delete expired branches. Unreferenced objects can then be git-gc'd remote-side.
 
     args = parser.parse_args()
     printer.verbosity = args.verbosity
@@ -263,6 +269,9 @@ def main() -> int:
         return 1
     if args.force_tag and not args.force_branch:
         printer.error("Error: `--force-tag` requires `--force-branch`")
+        return 1
+    if args.push_note and not args.push:
+        printer.error("Error: `--push-note` requires `--push`")
         return 1
 
     if args.remote == ".":
@@ -307,6 +316,9 @@ def main() -> int:
     if args.push_tag:
         push_tag(args, d, rbgit, remote_bin_name)
 
+    if args.push_note:
+        note_append_push(args, d)
+
     if args.rm_expired:
         remote_delete_expired_branches(args, d, rbgit, remote_bin_name)
 
@@ -321,9 +333,13 @@ def main() -> int:
 
 
 def push_branch(args, d, rbgit, remote_bin_name):
-    # Push branch first, then meta-data (we don't want meta-data to be pushed if branch push fails).
-    # Branch might exist already upstream.
-    # Pushing may take long, so always show stdout and stderr without capture.
+    """
+        Push branch to binary remote.
+
+        Push branch first, then meta-data (we don't want meta-data to be pushed if branch push fails).
+        Branch might exist already upstream.
+        Pushing may take long, so always show stdout and stderr without capture.
+    """
     printer.high_level(f"Pushing to remote artifact-repo: Artifact data on branch {d['bin_branch_name']}", file=sys.stderr)
     if args.force_branch:
         rbgit.cmd("push", "--force", remote_bin_name, d['bin_branch_name'], capture_output=False)
@@ -344,6 +360,9 @@ def push_branch(args, d, rbgit, remote_bin_name):
 
 
 def push_tag(args, d, rbgit, remote_bin_name):
+    """
+        Push tag to binary remote.
+    """
     if not d['bin_tag_name']:
         printer.error("Error: You are in Detached HEAD, so you can't push 'latest' tag to bin-remote with name of your source branch.", file=sys.stderr)
         return
@@ -384,7 +403,6 @@ def remote_delete_expired_branches(args, d, rbgit, remote_bin_name):
         Delete refs of expired branches on remote. Artifacts may still be kept alive by other refs, e.g. by latest-tag.
         Reclaiming disk-space on remote, requires running `git gc` or its equivalent -- _Housekeeping_ on GitLab.
         See https://docs.gitlab.com/ee/administration/housekeeping.html
-        TODO: Library to RPC trigger housekeeping/GC for {gitlab, github, gittea, gerrit, gitetcetc}?
     """
     branch_prefix = "artifact/expire/"
     lines = rbgit.cmd("ls-remote", "--heads", remote_bin_name, f"refs/heads/{branch_prefix}*").splitlines()
@@ -411,6 +429,7 @@ def remote_delete_expired_branches(args, d, rbgit, remote_bin_name):
 
         printer.high_level("Expired", delta_formatted, branch)
         rbgit.cmd("push", remote_bin_name, "--delete", branch)
+
 
 def remote_flush_meta_for_commit(args, d, rbgit, remote_bin_name):
     """
@@ -445,6 +464,79 @@ def remote_flush_meta_for_commit(args, d, rbgit, remote_bin_name):
             if not commit_exists(commit, heads, tags):
                 branch = "refs/artifact/meta-for-commit/" + commit
                 rbgit.cmd("push", remote_bin_name, "--delete", branch)
+
+
+def note_append_push(args, d):
+    """
+        Add a git-note to local src repository, and push it to src remote.
+        The note contains a single line of JSON pointing to the newly pushed artifact.
+        Such notes makes it discoverable, by simple git-log, where and what artifacts exist.
+    """
+
+    # Ensure we don't get additional directory levels in note refspec
+    bin_remote_sane = sanitize_slashes(args.remote)
+    name_sane = sanitize_slashes(args.name)
+
+    # Workspace may have modified tracked files - if so, SHA can't be trusted
+    work_state = "clean" if d['src_status'] == "" else "dirty"
+
+    # This note refspec has some design properties:
+    # - The "notes/artifact/"-prefix permits scoped {ignore,only} fetch of artifact notes.
+    # - The "notes/artifact/{bin_remote_sane}"-prefix permits fetch of only artifacts published on certain binary remotes,
+    #   this reduces git-log spam if some remotes only hold documentation and others hold built images.
+    # - The "notes/artifact/{bin_remote_sane}/{name_sane}"-prefix allows scoping to certain artifacts.
+    # - The final bin_sha_commit level detaches us from retention policy; if all is expired we can delete the note-ref.
+    git_notes_ref = sanitize_branch_name(f"refs/notes/artifact/{bin_remote_sane}/{name_sane}/{d['bin_sha_commit']}-{work_state}")
+
+    # git-notes assumes refs/notes/commits by default, which we don't want to interfere with,
+    # so we tell git to manipulate our refspec, by the GIT_NOTES_REF environment variable.
+    gitenv = {"GIT_NOTES_REF": git_notes_ref}
+    # Many CI systems do not have author configured, and we want to be non-destructive, so use env
+    if args.user_name:
+        gitenv['GIT_AUTHOR_NAME'] = args.user_name
+        gitenv['GIT_COMMITTER_NAME'] = args.user_name
+    if args.user_email:
+        gitenv['GIT_AUTHOR_EMAIL'] = args.user_email
+        gitenv['GIT_COMMITTER_EMAIL'] = args.user_email
+
+    # Ensure dumped json is specifically ordered - humans won't look till end of line.
+    # OK to duplicate data from the git note refspec, as either may change.
+    linedata = OrderedDict([
+        # Traceability {what, when, who, from where} published
+        ("date",   d['bin_time_commit']),  # sort chronologically
+        ("name",   args.name),             # sort similar/rebuilt artifacts together
+        ("user",   get_user()),
+        ("host",   get_hostname()),
+
+        # Retention policy
+        ("expire", d['bin_branch_expire']),
+
+        # Fully qualified 'pointer' to artifact on binary remote
+        ("remote", args.remote),
+        ("commit", d['bin_sha_commit']),  # we only need the artifact commit SHA, not any (expired) branches that point to it
+    ])
+    msg = json.dumps(linedata, separators=(', ', ':'))
+
+    def notes_fetch_resolve():
+        """ Fetch notes in source repo and bring our local copy up to date """
+        try:
+            exec_nostderr(["git", "fetch", args.src_remote_name, git_notes_ref], env=gitenv)
+            exec(["git", "notes", "merge", "--strategy", "cat_sort_uniq", "-v", "FETCH_HEAD"], env=gitenv)
+        except subprocess.CalledProcessError:
+            pass  # fetch above fails with no prior refs to fetch, that's OK
+
+    notes_fetch_resolve()
+    exec(["git", "notes", "append", "-m", msg, "HEAD"], env=gitenv)
+
+    tries = 10
+    while tries > 0:
+        try:
+            tries -= 1
+            exec(["git", "push", args.src_remote_name, git_notes_ref], env=gitenv)
+            break
+        except RuntimeError:
+            notes_fetch_resolve()
+
 
 if __name__ == "__main__":
     ret = main()
