@@ -7,98 +7,18 @@ import subprocess
 from collections import OrderedDict
 
 from rbgit import RbGit
-from printer import Printer
+from printer import printer
 from util_string import *
 from util_file import *
 from util_date import *
 from util_sysinfo import *
+from util import *
 from parser import *
+from commit_msg import *
 
-
-printer = Printer(verbosity=2, colorize=True)
-
-
-def extract_gerrit_change_id(commit_message: str) -> str:
-    # Find the Change-Id line(s)
-    change_id_lines = [line for line in commit_message.split('\n') if line.startswith("Change-Id:")]
-
-    # Extract the Change ID from the last matching line, if any
-    if change_id_lines:
-        last_change_id_line = change_id_lines[-1]
-        _, change_id = last_change_id_line.split(maxsplit=1)
-        return change_id
-
-    # If there is no Change-Id line, return an empty string
-    return ""
-
-
-def exec(command, env={}):
-    printer.debug("Run:", command, file=sys.stderr)
-    return subprocess.check_output(command, env=os.environ|env, text=True).strip()
-
-def exec_nostderr(command, env={}):
-    printer.debug("Run:", command, file=sys.stderr)
-    return subprocess.check_output(command, env=os.environ|env, text=True, stderr=subprocess.DEVNULL).strip()
-
-
-
-
-def emit_commit_msg(d: dict):
-    commit_msg_title = f"""
-        artifact: {d['src_repo']}@{d['src_sha_short']}: {d['artifact_name']} @({string_trunc_ellipsis(30, d['src_sha_title']).strip()})
-    """
-
-    commit_msg_body = """
-        This is a (binary) artifact with expiry. Expiry can be changed.
-        See https://gitlab.ci.demant.com/csfw/flow/git-recycle-bin#usage
-    """
-
-    commit_msg_trailers = f"""
-        artifact-schema-version: 1
-        artifact-name: {d['artifact_name']}
-        artifact-mime-type: {d['artifact_mime']}
-        artifact-tree-prefix: {d['artifact_relpath_nca']}
-        src-git-relpath: {d['artifact_relpath_src']}
-        src-git-commit-title: {d['src_sha_title']}
-        src-git-commit-sha: {d['src_sha']}
-        {prefix_lines(prefix="src-git-commit-changeid: ", lines=extract_gerrit_change_id(d['src_sha_msg']))}
-        src-git-commit-time-author: {d['src_time_author']}
-        src-git-commit-time-commit: {d['src_time_commit']}
-        src-git-branch: {d['src_branch'] if d['src_branch'] != "HEAD" else "Detached HEAD"}
-        src-git-repo-name: {d['src_repo']}
-        src-git-repo-url: {url_redact(d['src_repo_url'])}
-        src-git-commits-ahead: {d['src_commits_ahead'] if d['src_commits_ahead'] != "" else "?"}
-        src-git-commits-behind: {d['src_commits_behind'] if d['src_commits_behind'] != "" else "?"}
-        {prefix_lines(prefix="src-git-status: ", lines=trim_all_lines(d['src_status'] if d['src_status'] != "" else "clean"))}
-    """
-
-    commit_msg = f"""
-        {commit_msg_title}
-
-        {commit_msg_body}
-
-        {remove_empty_lines(trim_all_lines(commit_msg_trailers))}
-    """
-
-    return trim_all_lines(commit_msg)
-
-
-def parse_commit_msg(commit_msg):
-    # Regex breakdown:
-    #   ^([\w-]+) matches the key made up of word chars and dashes from line-start, captured in group 1
-    #   :         matches the colon delimiter
-    #   (.*)      matches the rest of the line as the value, captured in group 2
-    pattern = r'^([\w-]+):(.*)'
-
-    ## NOTE: This does not handle multi-line git trailers correctly, e.g. src-git-status
-    ret_dict = {}
-    for line in commit_msg.strip().splitlines():
-        match = re.match(pattern, line)
-        if match:
-            key, val = match.group(1), match.group(2)
-            ret_dict[key.strip()] = val.strip()
-    return ret_dict
-
+# commands
+from list import list_command
+from download import download_command
 
 
 def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branch: str, add_ignored: bool, src_remote_name: str) -> dict[str, str]:
@@ -207,29 +127,16 @@ def main() -> int:
     # TODO: Add --add-submodule to add src-git as a {update=none, shallow, nonrecursive} submodule in artifact-commit.
 
     args = parse_args()
-    printer.verbosity = args.verbosity
-    printer.colorize = args.color
+    if args is None:
+        return 1
 
     printer.debug("Arguments:")
     for arg in vars(args):
         printer.debug(f"  '{arg}': '{getattr(args, arg)}'")
 
-    # Sanity-check
-    if args.force_tag and not args.force_branch:
-        printer.error("Error: `--force-tag` requires `--force-branch`")
-        return 1
-    if args.push_note and not args.push:
-        printer.error("Error: `--push-note` requires `--push`")
-        return 1
-
-    try:
-        args.remote
-    except AttributeError:
-        printer.error("Error: command is missing a remote argument, contact maintainers")
-
     if args.remote == ".":
         src_git_dir = exec(["git", "rev-parse", "--absolute-git-dir"])
-        printer.high_level(f"Will push artifact to local src-git, {src_git_dir}. Mostly used for testing.")
+        printer.high_level(f"Will push artifact to local src-git, {src_git_dir}. Mostly used for testing.", file=sys.stderr)
         args.remote = src_git_dir
 
     # Source git's root, fully qualified path.
@@ -238,7 +145,7 @@ def main() -> int:
 
     # only some commands require path. All other cases, the git root suffices.
     try:
-        path = args.path
+        path = args.path if args.path else src_tree_root
     except AttributeError:
         path = src_tree_root
 
@@ -263,18 +170,24 @@ def main() -> int:
 
     commands = {
         "push": lambda: push_command(args, rbgit, remote_bin_name, path),
-        "clean": lambda: clean_command(rbgit, remote_bin_name)
+        "clean": lambda: clean_command(rbgit, remote_bin_name),
+        "list": lambda: list_command(args, rbgit, remote_bin_name),
+        "download": lambda: download_command(args, rbgit, remote_bin_name),
     }
+
+    if args.remote:
+        rbgit.add_remote_idempotent(name=remote_bin_name, url=args.remote)
 
     run = commands[args.command]
     rbgit.add_remote_idempotent(name=remote_bin_name, url=args.remote)
-    run()
+    exitcode = run()
 
     if args.rm_tmp and os.path.exists(rbgit_dir):
         printer.high_level(f"Deleting local bin repo, {rbgit_dir}, to free-up disk-space.", file=sys.stderr)
         shutil.rmtree(rbgit_dir, ignore_errors=True)
 
-    return 0
+    return exitcode
+
 
 def clean_command(rbgit, remote_bin_name):
     remote_delete_expired_branches(rbgit, remote_bin_name)
@@ -288,7 +201,7 @@ def push_command(args, rbgit, remote_bin_name, path):
 
     rbgit.add_remote_idempotent(name=remote_bin_name, url=args.remote)
     push_branch(args, d, rbgit, remote_bin_name)
-    if args.tag:
+    if args.push_tag:
         push_tag(args, d, rbgit, remote_bin_name)
     if args.push_note:
         note_append_push(args, d)
@@ -296,7 +209,6 @@ def push_command(args, rbgit, remote_bin_name, path):
         remote_delete_expired_branches(rbgit, remote_bin_name)
     if args.flush_meta:
         remote_flush_meta_for_commit(rbgit, remote_bin_name)
-
 
 def push_branch(args, d, rbgit, remote_bin_name):
     """

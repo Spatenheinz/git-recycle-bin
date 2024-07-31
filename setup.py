@@ -15,6 +15,10 @@ setup(name='git-recycle-bin',
             "src/util_date.py",
             "src/util_sysinfo.py",
             "src/parser.py",
+            "src/list.py",
+            "src/download.py",
+            "src/commit_msg.py",
+            "src/util.py",
       ],
      )
 
