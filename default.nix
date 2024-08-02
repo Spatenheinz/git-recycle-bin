@@ -14,4 +14,8 @@ pkgs.python311Packages.buildPythonApplication rec {
     colorama
     pytest
   ];
+
+  postInstall = ''
+    install -Dm755 ${./aux/git_add_ssh_remote.sh} $out/bin/git_add_ssh_remote.sh
+  '';
 }
