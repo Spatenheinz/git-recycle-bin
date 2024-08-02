@@ -5,8 +5,11 @@ demo1:
         . \
         --path ../tmp \
         --name tmp \
-        --add-ignored
+        --add-ignored \
+        --user-name "foo" --user-email "a@b"
     rm ../tmp/{1..2} && ls ../tmp
     git_recycle_bin.py list . \
-    | xargs -I _ git_recycle_bin.py download . _
+    | xargs -I _ git_recycle_bin.py download --force . _
+    ls ../tmp
+    ls .
     @rm -rf ../tmp

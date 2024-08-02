@@ -12,4 +12,7 @@ pkgs.mkShell {
     pkgs.just
     git-recycle-bin
   ];
+  shellHook = ''
+    export JUST_UNSTABLE=1
+  '';
 }

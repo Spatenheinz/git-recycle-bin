@@ -15,7 +15,7 @@ def list_command(args, rbgit, remote_bin_name):
 
 
 def remote_artifacts(rbgit, remote_bin_name):
-    # Fetch all artifacts based on refs/artifact/meta-for-commit/{src_sha}/* schema.
+    # Fetch all artifacts based on refs/artifact/meta-for-commit/{src_sha}/* refspec.
     # This schema makes it easy to query which artifact are available for the given commit.
     # This allows us to drastically reduce the meta-data to search through, which
     # can then further be queried.
@@ -25,9 +25,9 @@ def remote_artifacts(rbgit, remote_bin_name):
     artifacts = []
     for line in lines:
         cols = line.split()
-        meta = cols[0]
-        artifact = cols[1].strip()[len(search_path):]
-        artifacts.append((meta, artifact))
+        meta_sha_blob = cols[0]
+        artifact_sha_commit = cols[1].strip()[len(search_path):]
+        artifacts.append((meta_sha_blob, artifact_sha_commit))
     return artifacts
 
 

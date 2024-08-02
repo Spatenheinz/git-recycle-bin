@@ -13,7 +13,7 @@ from util_file import *
 from util_date import *
 from util_sysinfo import *
 from util import *
-from parser import *
+from arg_parser import *
 from commit_msg import *
 
 # commands

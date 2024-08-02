@@ -36,29 +36,30 @@ demo1_vverbose:
 
 # Same as demo1 but push-tag only work if you're not ahead
 demo2:
-    git_recycle_bin.py push --tag \
-        . \
+    git_recycle_bin.py push . \
+        --tag \
         --path . \
         --name "demo 2" \
         --user-name "foo" --user-email "a@b"
     git branch -vv -a
     git tag -l
 
+# TODO: what to do about --rm-expired and --flush-meta?
 # Demonstrate expiry with fuzzy time denomination
 demo3:
-    git_recycle_bin.py --push --quiet \
-        . \
+    git_recycle_bin.py push . \
+        --quiet \
         --path . \
         --name "demo 3" \
         --expire "in 2 seconds" \
         --user-name "foo" --user-email "a@b"
     git branch -vv
     sleep 3
-    git_recycle_bin.py --rm-expired --quiet --flush-meta \
-        . \
-        --path . \
-        --name "demo 3" \
-        --user-name "foo" --user-email "a@b"
+    # git_recycle_bin.py --rm-expired --quiet --flush-meta \
+    #     . \
+    #     --path . \
+    #     --name "demo 3" \
+    #     --user-name "foo" --user-email "a@b"
     git branch -vv
 
 # TODO: what to do about --rm-expired and --flush-meta?
@@ -97,8 +98,8 @@ demo5:
 
 # Demonstrate pushing git note to src repo
 demo6_note:
-    git_recycle_bin.py --rm-expired push --push-note -vv \
-        . \
+    git_recycle_bin.py push . --note -vv \
+        --rm-expired \
         --path . \
         --name "demo 6 note" \
         --expire "in 10 seconds" \

@@ -17,52 +17,28 @@ unittest:
   script:
     - nix-shell --pure --run "just unittest"
 
-demo0:
+demo_help:
   stage: demos
   script:
     - nix-shell --pure --run "just demo0"
 
-demo1:
+demo_push:
   stage: demos
   script:
-    - nix-shell --pure --run "just demo1"
+    - nix-shell --pure --run "just push::$DEMO"
+  parallel:
+    matrix:
+      - DEMO:
+        - demo1
+        - demo1_quiet
+        - demo1_verbose
+        - demo1_vverbose
+        - demo2
+        - demo3
+        - demo4
+        - demo5
 
-demo1_quiet:
-  stage: demos
-  script:
-    - nix-shell --pure --run "just demo1_quiet"
-
-demo1_verbose:
-  stage: demos
-  script:
-    - nix-shell --pure --run "just demo1_verbose"
-
-demo1_vverbose:
-  stage: demos
-  script:
-    - nix-shell --pure --run "just demo1_vverbose"
-
-demo2:
-  stage: demos
-  script:
-    - nix-shell --pure --run "just demo2"
-
-demo3:
-  stage: demos
-  script:
-    - nix-shell --pure --run "just demo3"
-
-demo4:
-  stage: demos
-  script:
-    - nix-shell --pure --run "just demo4"
-
-demo5:
-  stage: demos
-  script:
-    - nix-shell --pure --run "just demo5"
-
-demo6_note:
+demo_push_note:
   stage: demos
   script:
     # Ensure we got origin remote via ssh -- avoid trouble/leaks with https tokens
@@ -74,4 +50,34 @@ demo6_note:
 
     # This will actually push a note to src remote, so it is not local-only!
     # Not --pure so as to use host system's ssh client
-    - nix-shell --run "just demo6_note"
+    - nix-shell --run "just push::demo6_note"
+
+demo_clean:
+  stage: demos
+  script:
+    - nix-shell --pure --run "just clean::$DEMO"
+  parallel:
+    matrix:
+      - DEMO:
+        - demo1
+
+demo_list:
+  stage: demos
+  script:
+    - nix-shell --pure --run "just list::$DEMO"
+  parallel:
+    matrix:
+      - DEMO:
+        - demo1
+        - demo2
+        - demo3
+        - demo4
+
+demo_download:
+  stage: demos
+  script:
+    - nix-shell --pure --run "just download::$DEMO"
+  parallel:
+    matrix:
+      - DEMO:
+        - demo1
