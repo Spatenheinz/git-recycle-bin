@@ -34,3 +34,5 @@ class Printer:
             return color + message + Style.RESET_ALL
         else:
             return message
+
+printer = Printer(verbosity=2, colorize=True)
