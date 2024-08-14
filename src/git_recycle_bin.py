@@ -320,27 +320,17 @@ def remote_flush_meta_for_commit(rbgit, remote_bin_name):
         This subroutine will scan all existing meta-for-commit references and determine if an artifact is still
         available. If not, the metadata commit will be removed.
     """
-    def commit_exists(commit, heads, tags):
-        for line in heads:
-            if commit in line:
-                return True
+    meta_set = rbgit.cmd("ls-remote", "--refs", remote_bin_name, "refs/artifact/meta-for-commit/*").splitlines()
+    heads    = rbgit.cmd("ls-remote", "--heads", remote_bin_name, "refs/heads/*").splitlines()
+    tags     = rbgit.cmd("ls-remote", "--tags", remote_bin_name, "refs/tags/*").splitlines()
 
-        for line in tags:
-            if commit in line:
-                return True
-
-        return False
-
-    meta_set = rbgit.cmd("ls-remote", "--refs", remote_bin_name, f"refs/artifact/meta-for-commit/*").splitlines()
-    heads    = rbgit.cmd("ls-remote", "--heads", remote_bin_name, f"refs/heads/*").splitlines()
-    tags     = rbgit.cmd("ls-remote", "--tags", remote_bin_name, f"refs/tags/*").splitlines()
-
-    for line in meta_set:
-        commit = line.split("refs/artifact/meta-for-commit/")[1]
-        if commit:
-            if not commit_exists(commit, heads, tags):
-                branch = "refs/artifact/meta-for-commit/" + commit
-                rbgit.cmd("push", remote_bin_name, "--delete", branch)
+    sha_len = 40
+    commits = { l[-sha_len:] for l in meta_set }
+    commits.difference_update((l[:sha_len] for l in heads))
+    commits.difference_update((l[:sha_len] for l in tags))
+    branches = ["refs/artifact/meta-for-commit/" + c for c in commits]
+    if branches:
+        rbgit.cmd("push", remote_bin_name, "--delete", *branches)
 
 
 def note_append_push(args, d):
