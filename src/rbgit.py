@@ -1,13 +1,39 @@
 import os
 import sys
 import subprocess
+import shutil
+
+from util_file import nca_path
+from printer import printer
+
+
+Path = str
+def create_rbgit(src_tree_root: Path, artifact_path: Path, clean: bool = True) -> "RbGit":
+    """ Create an RbGit instance from a source tree root and artifact path """
+    # Artifact may reside within or outside source git's root. E.g. under $GITROOT/obj/ or $GITROOT/../obj/
+    nca_dir = nca_path(src_tree_root, artifact_path)
+
+    # Place recyclebin-git's root at a stable location, where both source git and artifact can be seen.
+    # Placing artifacts here allows for potential merging of artifact commits as paths are fully qualified.
+    rbgit_dir = os.path.join(nca_dir, ".rbgit")
+
+    return RbGit(printer, rbgit_dir=rbgit_dir, rbgit_work_tree=nca_dir, clean=clean)
 
 class RbGit:
-    def __init__(self, printer, rbgit_dir=None, rbgit_work_tree=None):
+    def __init__(self, printer, rbgit_dir=None, rbgit_work_tree=None, clean: bool = True):
         self.printer = printer
         self.rbgit_dir = rbgit_dir if rbgit_dir else os.environ["RBGIT_DIR"]
         self.rbgit_work_tree = rbgit_work_tree if rbgit_work_tree else os.environ["RBGIT_WORK_TREE"]
+        self.clean = clean
         self.init_idempotent()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if exc_type is None and self.clean and os.path.exists(self.rbgit_dir):
+            printer.high_level(f"Deleting local bin repo, {self.rbgit_dir}, to free-up disk-space.", file=sys.stderr)
+            shutil.rmtree(self.rbgit_dir, ignore_errors=True)
 
     def cmd(self, *args, input=None, capture_output=True):
         # Override environment variables
@@ -27,6 +53,10 @@ class RbGit:
         return result.stdout
 
     def init_idempotent(self):
+        if self.clean and os.path.exists(self.rbgit_dir):
+            printer.high_level(f"Deleting local bin repo, {self.rbgit_dir}, to start from clean-slate.", file=sys.stderr)
+            shutil.rmtree(self.rbgit_dir)
+
         try:
             # Check if inside git work tree
             self.cmd("rev-parse", "--is-inside-work-tree")

@@ -6,7 +6,7 @@ import shutil
 import subprocess
 from collections import OrderedDict
 
-from rbgit import RbGit
+from rbgit import RbGit, create_rbgit
 from printer import printer
 from util_string import *
 from util_file import *
@@ -19,7 +19,6 @@ from commit_msg import *
 # commands
 from list import list_command
 from download import download_command
-
 
 def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branch: str, add_ignored: bool, src_remote_name: str) -> dict[str, str]:
     """ Create Artifact: A binary commit, with builtin traceability and expiry """
@@ -149,42 +148,28 @@ def main() -> int:
     except AttributeError:
         path = src_tree_root
 
-    # Artifact may reside within or outside source git's root. E.g. under $GITROOT/obj/ or $GITROOT/../obj/
-    nca_dir = nca_path(src_tree_root, path)
-
-    # Place recyclebin-git's root at a stable location, where both source git and artifact can be seen.
-    # Placing artifacts here allows for potential merging of artifact commits as paths are fully qualified.
-    rbgit_dir=f"{nca_dir}/.rbgit"
-
-    if args.rm_tmp and os.path.exists(rbgit_dir):
-        printer.high_level(f"Deleting local bin repo, {rbgit_dir}, to start from clean-slate.", file=sys.stderr)
-        shutil.rmtree(rbgit_dir)
-
-    rbgit = RbGit(printer, rbgit_dir=rbgit_dir, rbgit_work_tree=nca_dir)
-    if args.user_name:
-        rbgit.cmd("config", "--local", "user.name", args.user_name)
-    if args.user_email:
-        rbgit.cmd("config", "--local", "user.email", args.user_email)
 
     remote_bin_name = "recyclebin"
 
-    commands = {
-        "push": lambda: push_command(args, rbgit, remote_bin_name, path),
-        "clean": lambda: clean_command(rbgit, remote_bin_name),
-        "list": lambda: list_command(args, rbgit, remote_bin_name),
-        "download": lambda: download_command(args, rbgit, remote_bin_name),
-    }
+    with create_rbgit(src_tree_root, path, clean=args.rm_tmp) as rbgit:
+        if args.user_name:
+            rbgit.cmd("config", "--local", "user.name", args.user_name)
+        if args.user_email:
+            rbgit.cmd("config", "--local", "user.email", args.user_email)
 
-    if args.remote:
-        rbgit.add_remote_idempotent(name=remote_bin_name, url=args.remote)
+        commands = {
+            "push": lambda: push_command(args, rbgit, remote_bin_name, path),
+            "clean": lambda: clean_command(rbgit, remote_bin_name),
+            "list": lambda: list_command(args, rbgit, remote_bin_name),
+            "download": lambda: download_command(args, rbgit, remote_bin_name),
+        }
 
-    run = commands[args.command]
-    rbgit.add_remote_idempotent(name=remote_bin_name, url=args.remote)
-    exitcode = run()
+        if args.remote:
+            rbgit.add_remote_idempotent(name=remote_bin_name, url=args.remote)
 
-    if args.rm_tmp and os.path.exists(rbgit_dir):
-        printer.high_level(f"Deleting local bin repo, {rbgit_dir}, to free-up disk-space.", file=sys.stderr)
-        shutil.rmtree(rbgit_dir, ignore_errors=True)
+        run = commands[args.command]
+        exitcode = run()
+
 
     return exitcode
 
