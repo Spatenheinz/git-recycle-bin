@@ -6,7 +6,7 @@ import shutil
 import subprocess
 from collections import OrderedDict
 
-from rbgit import RbGit
+from rbgit import RbGit, create_rbgit
 from printer import printer
 from util_string import *
 from util_file import *
@@ -19,7 +19,6 @@ from commit_msg import *
 # commands
 from list import list_command
 from download import download_command
-
 
 def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branch: str, add_ignored: bool, src_remote_name: str) -> dict[str, str]:
     """ Create Artifact: A binary commit, with builtin traceability and expiry """
@@ -149,42 +148,28 @@ def main() -> int:
     except AttributeError:
         path = src_tree_root
 
-    # Artifact may reside within or outside source git's root. E.g. under $GITROOT/obj/ or $GITROOT/../obj/
-    nca_dir = nca_path(src_tree_root, path)
-
-    # Place recyclebin-git's root at a stable location, where both source git and artifact can be seen.
-    # Placing artifacts here allows for potential merging of artifact commits as paths are fully qualified.
-    rbgit_dir=f"{nca_dir}/.rbgit"
-
-    if args.rm_tmp and os.path.exists(rbgit_dir):
-        printer.high_level(f"Deleting local bin repo, {rbgit_dir}, to start from clean-slate.", file=sys.stderr)
-        shutil.rmtree(rbgit_dir)
-
-    rbgit = RbGit(printer, rbgit_dir=rbgit_dir, rbgit_work_tree=nca_dir)
-    if args.user_name:
-        rbgit.cmd("config", "--local", "user.name", args.user_name)
-    if args.user_email:
-        rbgit.cmd("config", "--local", "user.email", args.user_email)
 
     remote_bin_name = "recyclebin"
 
-    commands = {
-        "push": lambda: push_command(args, rbgit, remote_bin_name, path),
-        "clean": lambda: clean_command(rbgit, remote_bin_name),
-        "list": lambda: list_command(args, rbgit, remote_bin_name),
-        "download": lambda: download_command(args, rbgit, remote_bin_name),
-    }
+    with create_rbgit(src_tree_root, path, clean=args.rm_tmp) as rbgit:
+        if args.user_name:
+            rbgit.cmd("config", "--local", "user.name", args.user_name)
+        if args.user_email:
+            rbgit.cmd("config", "--local", "user.email", args.user_email)
 
-    if args.remote:
-        rbgit.add_remote_idempotent(name=remote_bin_name, url=args.remote)
+        commands = {
+            "push": lambda: push_command(args, rbgit, remote_bin_name, path),
+            "clean": lambda: clean_command(rbgit, remote_bin_name),
+            "list": lambda: list_command(args, rbgit, remote_bin_name),
+            "download": lambda: download_command(args, rbgit, remote_bin_name),
+        }
 
-    run = commands[args.command]
-    rbgit.add_remote_idempotent(name=remote_bin_name, url=args.remote)
-    exitcode = run()
+        if args.remote:
+            rbgit.add_remote_idempotent(name=remote_bin_name, url=args.remote)
 
-    if args.rm_tmp and os.path.exists(rbgit_dir):
-        printer.high_level(f"Deleting local bin repo, {rbgit_dir}, to free-up disk-space.", file=sys.stderr)
-        shutil.rmtree(rbgit_dir, ignore_errors=True)
+        run = commands[args.command]
+        exitcode = run()
+
 
     return exitcode
 
@@ -194,6 +179,10 @@ def clean_command(rbgit, remote_bin_name):
     remote_flush_meta_for_commit(rbgit, remote_bin_name)
 
 def push_command(args, rbgit, remote_bin_name, path):
+    """like push but discard the result"""
+    push(args, rbgit, remote_bin_name, path)
+
+def push(args, rbgit, remote_bin_name, path) -> dict[str, str]:
     printer.high_level(f"Making local commit of artifact {path} in artifact-repo at {rbgit.rbgit_dir}", file=sys.stderr)
     d = create_artifact_commit(rbgit, args.name, path, args.expire, args.add_ignored, args.src_remote_name)
     printer.detail(rbgit.cmd("branch", "-vv"))
@@ -209,6 +198,7 @@ def push_command(args, rbgit, remote_bin_name, path):
         remote_delete_expired_branches(rbgit, remote_bin_name)
     if args.flush_meta:
         remote_flush_meta_for_commit(rbgit, remote_bin_name)
+    return d
 
 def push_branch(args, d, rbgit, remote_bin_name):
     """
@@ -252,7 +242,7 @@ def push_tag(args, d, rbgit, remote_bin_name):
     remote_bin_sha_commit = rbgit.fetch_current_tag_value(remote_bin_name, d['bin_tag_name'])
     if remote_bin_sha_commit:
         printer.high_level(f"Bin-remote already has a tag named {d['bin_tag_name']} pointing to {remote_bin_sha_commit[:8]}.", file=sys.stderr)
-        remote_meta = rbgit.fetch_cat_pretty(remote_bin_name, f"refs/artifact/meta-for-commit/{remote_bin_sha_commit}")
+        remote_meta = rbgit.fetch_cat_pretty(remote_bin_name, d['bin_ref_only_metadata'])
 
         commit_time_theirs = parse_commit_msg(remote_meta)['src-git-commit-time-commit']
         commit_time_ours = d['src_time_commit']
@@ -320,15 +310,17 @@ def remote_flush_meta_for_commit(rbgit, remote_bin_name):
         This subroutine will scan all existing meta-for-commit references and determine if an artifact is still
         available. If not, the metadata commit will be removed.
     """
-    meta_set = rbgit.cmd("ls-remote", "--refs", remote_bin_name, "refs/artifact/meta-for-commit/*").splitlines()
+    meta_set = rbgit.meta_for_commit_refs(remote_bin_name)
     heads    = rbgit.cmd("ls-remote", "--heads", remote_bin_name, "refs/heads/*").splitlines()
     tags     = rbgit.cmd("ls-remote", "--tags", remote_bin_name, "refs/tags/*").splitlines()
 
     sha_len = 40
-    commits = { l[-sha_len:] for l in meta_set }
-    commits.difference_update((l[:sha_len] for l in heads))
-    commits.difference_update((l[:sha_len] for l in tags))
-    branches = ["refs/artifact/meta-for-commit/" + c for c in commits]
+    commits = { l[-sha_len:]: l[sha_len+1:] for l in meta_set }
+    heads = { l[:sha_len] for l in heads }
+    tags  = { l[:sha_len] for l in tags }
+    branches = [ refspec for commit_sha, refspec in commits.items()
+                 if commit_sha not in heads and commit_sha not in tags
+                ]
     if branches:
         rbgit.cmd("push", remote_bin_name, "--delete", *branches)
 

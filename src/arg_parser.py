@@ -18,7 +18,7 @@ def tuple1(key):
     return f
 
 
-def parse_args():
+def parse_args(args=None):
     class CustomHelpFormatter(argparse.HelpFormatter):
         def __init__(self, prog):
             super().__init__(prog, indent_increment=2, max_help_position=40)
@@ -75,7 +75,7 @@ def parse_args():
     g.add_argument("artifacts", metavar='artifact', nargs='+', type=str, help="Artifact SHA(s) to download")
     g.add_argument("--force", "-f", action='store_true', help="Force download, even if local files ")
 
-    args = parser.parse_args()
+    args = parser.parse_args(args)
 
     def chech_query(args):
         if args.query is None:
