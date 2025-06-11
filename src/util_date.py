@@ -3,6 +3,7 @@ import datetime
 import dateutil.relativedelta
 from dateutil.tz import tzlocal
 import maya
+import dateparser
 
 # Don't change the date formats! This will break parsing
 DATE_FMT_GIT = "%a, %d %b %Y %H:%M:%S %z"  # E.g. "Thu, 27 Jul 2023 13:15:26 +0200". Git commit times, human readable
@@ -11,9 +12,12 @@ DATE_FMT_EXPIRE_HMz = "%H.%M%z"   # E.g. "13.14+0200". Machine sortable
 DATE_FMT_EXPIRE = f"{DATE_FMT_EXPIRE_YMD}/{DATE_FMT_EXPIRE_HMz}"  # E.g. "2023-07-27/13.14+0200". Used in branch-names, machine sortable
 
 def parse_fuzzy_time(fuzzy_time: str) -> datetime:
-    dt = maya.when(fuzzy_time)
-    if dt.timezone == 'UTC':
-        dt = dt.datetime().astimezone(tzlocal())
+    """Parse fuzzy time expressions and return a timezone aware ``datetime``."""
+
+    dt = dateparser.parse(fuzzy_time, settings={"RETURN_AS_TIMEZONE_AWARE": True})
+    if dt is None:
+        # Fallback to maya for expressions dateparser does not understand
+        dt = maya.when(fuzzy_time).datetime()
     return dt
 
 def parse_expire_date(expiry_formatted: str, prefix_discard: str = "") -> dict:
@@ -32,7 +36,10 @@ def parse_expire_date(expiry_formatted: str, prefix_discard: str = "") -> dict:
     return ret
 
 def date_fuzzy2expiryformat(fuzzy_date: str) -> str:
+    """Convert fuzzy date/time string to ``DATE_FMT_EXPIRE`` in local time."""
+
     dt_obj = parse_fuzzy_time(fuzzy_date)
+    dt_obj = dt_obj.astimezone(tzlocal())
     return datetime.datetime.strftime(dt_obj, DATE_FMT_EXPIRE)
 
 def date_parse_formatted(date_string: str, date_format: str) -> datetime:

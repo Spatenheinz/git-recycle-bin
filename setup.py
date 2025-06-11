@@ -5,6 +5,11 @@ from setuptools import setup, find_packages
 setup(name='git-recycle-bin',
       # Modules to import from other scripts:
       packages=find_packages(),
+      install_requires=[
+          'maya',
+          'colorama',
+          'dateparser',
+      ],
       # Executables
       scripts=[
             "src/git_recycle_bin.py",

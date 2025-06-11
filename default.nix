@@ -12,6 +12,7 @@ pkgs.python311Packages.buildPythonApplication rec {
   pythonPath = with pkgs.python311Packages; [
     maya
     colorama
+    dateparser
     pytest
   ];
 
