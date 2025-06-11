@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v25
+      - name: Usage help
+        run: nix-shell --pure --run "git_recycle_bin.py --help"
+      - name: Just list
+        run: nix-shell --pure --run "just --list"
+      - name: Unit tests
+        env:
+          TZ: Europe/Copenhagen
+        run: nix-shell --pure --run "just unittest"
