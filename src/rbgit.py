@@ -1,6 +1,7 @@
 import os
 import sys
 import subprocess
+import re
 import shutil
 
 from util_file import nca_path

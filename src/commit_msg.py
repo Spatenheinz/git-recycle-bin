@@ -1,4 +1,12 @@
-from util_string import *
+import re
+
+from util_string import (
+    prefix_lines,
+    remove_empty_lines,
+    string_trunc_ellipsis,
+    trim_all_lines,
+    url_redact,
+)
 
 
 def extract_gerrit_change_id(commit_message: str) -> str:
@@ -36,8 +44,8 @@ def emit_commit_msg(d: dict):
     """
 
     commit_msg_body = """
-        This is a (binary) artifact with expiry. Expiry can be changed.
-        See https://gitlab.ci.demant.com/csfw/flow/git-recycle-bin#usage
+        This artifact was published by git-recycle-bin - it may expire!
+        See https://github.com/ArtifactLabs/git-recycle-bin
     """
 
     commit_msg_trailers = f"""

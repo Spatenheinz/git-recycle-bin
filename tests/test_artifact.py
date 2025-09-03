@@ -5,6 +5,7 @@ import os
 from contextlib import contextmanager
 import subprocess
 from typing import Set
+import dateparser
 
 from src import git_recycle_bin as grb  # DUT
 
@@ -25,8 +26,13 @@ def test_date_formatted2unix():
     assert grb.date_formatted2unix("Wed, 21 Jun 2023 14:13:31 +0200", "%a, %d %b %Y %H:%M:%S %z") == 1687349611
 
 def test_absolute_date():
-    assert grb.date_fuzzy2expiryformat("2023-07-27 CEST") == "2023-07-27/00.00+0200"
-    assert grb.date_fuzzy2expiryformat("Mon, 1 Feb 1994 21:21:42 GMT") == "1994-02-01/22.21+0100"
+    expected = dateparser.parse("2023-07-27 CEST", settings={"RETURN_AS_TIMEZONE_AWARE": True})
+    expected = expected.astimezone(tzlocal()).strftime(grb.DATE_FMT_EXPIRE)
+    assert grb.date_fuzzy2expiryformat("2023-07-27 CEST") == expected
+
+    expected = dateparser.parse("Mon, 1 Feb 1994 21:21:42 GMT", settings={"RETURN_AS_TIMEZONE_AWARE": True})
+    expected = expected.astimezone(tzlocal()).strftime(grb.DATE_FMT_EXPIRE)
+    assert grb.date_fuzzy2expiryformat("Mon, 1 Feb 1994 21:21:42 GMT") == expected
 
 def test_relative_date():
     assert grb.date_fuzzy2expiryformat("now") == datetime.datetime.now(tzlocal()).strftime(grb.DATE_FMT_EXPIRE)
@@ -50,10 +56,10 @@ def test_relative_date():
     assert grb.date_fuzzy2expiryformat("next month") == grb.date_fuzzy2expiryformat("now in 1 month")
 
 def test_invalid_date():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="invalid datetime input"):
         grb.date_fuzzy2expiryformat("invalid")
-    with pytest.raises(ValueError):
-        assert grb.date_fuzzy2expiryformat("Mon, 32 Feb 1994 21:21:42 GMT") == "there is no Feb 32"
+    with pytest.raises(ValueError, match="invalid datetime input"):
+        grb.date_fuzzy2expiryformat("Mon, 32 Feb 1994 21:21:42 GMT")
 
 def test_parse_expire_datetime():
     p = "artifact/expire/"

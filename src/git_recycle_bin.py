@@ -8,13 +8,30 @@ from collections import OrderedDict
 
 from rbgit import RbGit, create_rbgit
 from printer import printer
-from util_string import *
-from util_file import *
-from util_date import *
-from util_sysinfo import *
-from util import *
-from arg_parser import *
-from commit_msg import *
+from util_string import (
+    prefix_lines,
+    sanitize_branch_name,
+    sanitize_slashes,
+    string_trunc_ellipsis,
+    trim_all_lines,
+    url_redact,
+)
+from util_file import nca_path, rel_dir, classify_path
+from util_date import (
+    DATE_FMT_GIT,
+    DATE_FMT_EXPIRE,
+    date_fuzzy2expiryformat,
+    date_formatted2unix,
+    date_parse_formatted,
+    format_timespan,
+    parse_expire_date,
+)
+from dateutil.tz import tzlocal
+import datetime
+from util_sysinfo import get_user, get_hostname
+from util import exec, exec_nostderr
+from arg_parser import parse_args
+from commit_msg import emit_commit_msg, parse_commit_msg, extract_gerrit_change_id
 
 # commands
 from list import list_command
@@ -47,9 +64,9 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branc
     # Author time is easily set with `git commit --date`.
     d['src_time_author']  = exec(["git", "show", "-s", "--format=%ad", f"--date=format:{DATE_FMT_GIT}", d['src_sha']])
 
-    # Commiter time changes every time the commit-SHA changes, for example {rebasing, amending, ...}.
-    # Commiter time can be set with $GIT_COMMITTER_DATE or `git rebase --committer-date-is-author-date`.
-    # Commiter time is monotonically increasing but sampled locally, so graph could still be non-monotonic if a collaborator has a very wrong clock.
+    # Committer time changes every time the commit-SHA changes, for example {rebasing, amending, ...}.
+    # Committer time can be set with $GIT_COMMITTER_DATE or `git rebase --committer-date-is-author-date`.
+    # Committer time is monotonically increasing but sampled locally, so graph could still be non-monotonic if a collaborator has a very wrong clock.
     d['src_time_commit']  = exec(["git", "show", "-s", "--format=%cd", f"--date=format:{DATE_FMT_GIT}", d['src_sha']])
 
     d['src_branch']       = exec(["git", "rev-parse", "--abbrev-ref", "HEAD"])
@@ -76,7 +93,7 @@ def create_artifact_commit(rbgit, artifact_name: str, binpath: str, expire_branc
     d['artifact_relpath_nca'] = rel_dir(pto=binpath, pfrom=d['nca_dir'])        # Relative path to artifact from nca_dir. Artifact is always within nca_dir
     d['artifact_relpath_src'] = rel_dir(pto=binpath, pfrom=d['src_tree_root'])  # Relative path to artifact from src-git-root. Artifact might be outside of source git.
 
-    # 'expire' branch ref will be deleted with '--rm-expire' argument.
+    # 'expire' branch ref will be deleted with '--rm-expired' argument.
     # E.g.: 'artifact/expire/2024-07-20/14.17+0200/project.git@182db9b0696a5e9f97a5800e4866917c5465b2c6/{obj/doc/html}'
     d['bin_branch_name'] = f"artifact/expire/{d['bin_branch_expire']}/{d['src_repo']}@{d['src_sha']}/{{{d['artifact_relpath_nca']}}}"
     # 'latest' tag ref will not expire but is overwritten to point to newer SHA.
