@@ -11,3 +11,20 @@ def exec(command, env={}):
 def exec_nostderr(command, env={}):
     printer.debug("Run:", command, file=sys.stderr)
     return subprocess.check_output(command, env=os.environ|env, text=True, stderr=subprocess.DEVNULL).strip()
+
+def jq_unsafe(command, input, env={}):
+    """
+    Run jq command and return the output.
+    """
+    printer.debug("Run jq:", command, file=sys.stderr)
+    return subprocess.check_output(['jq'] + command, input=input, env=os.environ|env, text=True).strip()
+
+def jq(command, input, env={}):
+    """
+    Run jq command and return the output, ignoring errors.
+    """
+    try:
+        return jq(command, input, env)
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        printer.error(f"jq command failed: {e}", file=sys.stderr)
+        return None
