@@ -13,17 +13,19 @@ def exec_nostderr(command, env={}, cwd=None):
     return subprocess.check_output(command, env=os.environ|env, text=True, cwd=cwd,
                                    stderr=subprocess.DEVNULL).strip()
 
-def jq_unsafe(command, input, env={}):
+def jq_unsafe(command, input, env=None):
     """
     Run jq command and return the output.
     """
+    env = env or {}
     printer.debug("Run jq:", command, file=sys.stderr)
     return subprocess.check_output(['jq'] + command, input=input, env=os.environ|env, text=True).strip()
 
-def jq(command, input, env={}):
+def jq(command, input, env=None):
     """
     Run jq command and return the output, ignoring errors.
     """
+    env = env or {}
     try:
         return jq_unsafe(command, input, env)
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
