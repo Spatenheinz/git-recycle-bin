@@ -49,9 +49,6 @@ class RbGit:
     def __enter__(self):
         return self
 
-    def __del__(self):
-        self._destroy()
-
     def cleanup(self):
         self.clean = True
         self._destroy()
@@ -62,8 +59,7 @@ class RbGit:
             shutil.rmtree(self.rbgit_dir, ignore_errors=True)
 
     def __exit__(self, exc_type, exc_value, traceback):
-        if exc_type is None:
-            self._destroy()
+        self._destroy()
 
     def cmd(self, *args, input=None, capture_output=True):
         # Override environment variables
