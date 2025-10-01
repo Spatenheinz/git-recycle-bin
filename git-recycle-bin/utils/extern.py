@@ -25,7 +25,7 @@ def jq(command, input, env={}):
     Run jq command and return the output, ignoring errors.
     """
     try:
-        return jq(command, input, env)
+        return jq_unsafe(command, input, env)
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         printer.error(f"jq command failed: {e}", file=sys.stderr)
         return None
