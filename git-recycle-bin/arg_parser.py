@@ -97,8 +97,8 @@ def parse_args(args=None):
             queries.append(NameQuery(args.name))
         if hasattr(args, 'path') and args.path:
             queries.append(PathQuery(args.path))
-        if hasattr(args, 'relpath') and args.path:
-            queries.append(RelPathQuery(args.path))
+        if hasattr(args, 'relpath') and args.relpath:
+            queries.append(RelPathQuery(args.relpath))
 
         if len(queries) > 1:
             args.query = AndQuery(queries)
