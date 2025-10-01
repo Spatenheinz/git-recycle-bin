@@ -38,23 +38,23 @@ def download(rbgit: RbGit,
     url = rbgit.get_remote_url(remote_bin_name)
 
     err = None
-    for artifact in artifacts:
-        rel_path = artifact.meta_data['src-git-relpath']
-        tree_prefix = artifact.meta_data['artifact-tree-prefix']
-        name = sanitize_slashes(tree_prefix)
+    try:
+        for artifact in artifacts:
+            rel_path = artifact.meta_data['src-git-relpath']
+            tree_prefix = artifact.meta_data['artifact-tree-prefix']
+            name = sanitize_slashes(tree_prefix)
 
-        tmp_rbgit = create_rbgit(artifact_path=rel_path, clean=False)
-        rbgits[tmp_rbgit.rbgit_work_tree] = tmp_rbgit
-        tmp_rbgit.add_remote_idempotent(name=name, url=url)
-        ret = download_single(tmp_rbgit, name, artifact.artifact_sha, path=tree_prefix, force=force)
-        if err is not None:
-            break
-
-    if rm_tmp:
-        for path, tmp_rbgit in rbgits.items():
-            if path != rbgit.rbgit_work_tree:
-                tmp_rbgit.cleanup()
-
+            tmp_rbgit = create_rbgit(artifact_path=rel_path, clean=False)
+            rbgits[tmp_rbgit.rbgit_work_tree] = tmp_rbgit
+            tmp_rbgit.add_remote_idempotent(name=name, url=url)
+            err = download_single(tmp_rbgit, name, artifact.artifact_sha, path=tree_prefix, force=force)
+            if err is not None:
+                break
+    finally:
+        if rm_tmp:
+            for path, tmp_rbgit in rbgits.items():
+                if path != rbgit.rbgit_work_tree:
+                    tmp_rbgit.cleanup()
     return err
 
 
