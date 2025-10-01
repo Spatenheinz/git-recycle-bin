@@ -80,7 +80,7 @@ def download_single(rbgit: RbGit, remote_bin_name: str, artifact_sha: str,
             return 1
 
 
-def refspec_map(artifacts: ListResult) -> dict[str, ListResult]:
+def refspec_map(artifacts: list[ListResult]) -> dict[str, ListResult]:
     """
     Given an iterable of tuples (meta_sha, refspec), convert into a map of
     {
