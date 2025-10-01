@@ -33,7 +33,7 @@ def remote_artifacts(rbgit: RbGit,
     if query is None:
         return artifacts
 
-    printer.debug(f"Filtering artifacts by {query.__class__} with {{ {query.query()} }}")
+    printer.debug(f"Filtering artifacts by {query.__class__.name} with {{ {query.query()} }}")
 
     return filter_artifacts(artifacts, query)
 
