@@ -115,7 +115,9 @@ def jq_filter(result: ListResult, query: str):
     meta_data_json = json.dumps(result.meta_data)
     jq_res = jq([query], input=meta_data_json)
     printer.debug(f"jq result: {jq_res}")
-    return jq_res is not None and jq_res != "" and jq_res != "null" and jq_res != "[]"
+    json_value = js.loads(meta_data_json)
+    return bool(json_value)
+
 
 def meta_data(rbgit, remote_bin_name, meta_data_commit):
     data = rbgit.fetch_cat_pretty(remote_bin_name, meta_data_commit)
